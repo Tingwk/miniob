@@ -533,7 +533,7 @@ expression:
     // your code here
     | ID LBRACE expression RBRACE {
       $$ = create_aggregate_expression($1, $3, sql_string, &@$);
-      delete $1;
+      free($1);
     }
     ;
 

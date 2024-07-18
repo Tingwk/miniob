@@ -2189,7 +2189,7 @@ yyreduce:
 #line 534 "yacc_sql.y"
                                   {
       (yyval.expression) = create_aggregate_expression((yyvsp[-3].string), (yyvsp[-1].expression), sql_string, &(yyloc));
-      delete (yyvsp[-3].string);
+      free((yyvsp[-3].string));
     }
 #line 2195 "yacc_sql.cpp"
     break;
