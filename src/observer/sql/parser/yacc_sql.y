@@ -531,6 +531,10 @@ expression:
       $$ = new StarExpr();
     }
     // your code here
+    | ID LBRACE expression RBRACE {
+      $$ = create_aggregate_expression($1, $3, sql_string, &@$);
+      delete $1;
+    }
     ;
 
 rel_attr:
@@ -661,6 +665,10 @@ group_by:
     /* empty */
     {
       $$ = nullptr;
+    }
+    | GROUP BY expression_list {
+      $$ = $3;
+      /*delete $3;*/
     }
     ;
 load_data_stmt:
