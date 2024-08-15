@@ -42,6 +42,8 @@ See the Mulan PSL v2 for more details. */
 #include "sql/operator/hash_group_by_physical_operator.h"
 #include "sql/operator/scalar_group_by_physical_operator.h"
 #include "sql/operator/table_scan_vec_physical_operator.h"
+#include "sql/operator/update_logical_operator.h"
+#include "sql/operator/update_physical_operator.h"
 #include "sql/optimizer/physical_plan_generator.h"
 
 using namespace std;
@@ -86,6 +88,9 @@ RC PhysicalPlanGenerator::create(LogicalOperator &logical_operator, unique_ptr<P
     case LogicalOperatorType::GROUP_BY: {
       return create_plan(static_cast<GroupByLogicalOperator &>(logical_operator), oper);
     } break;
+    case LogicalOperatorType::UPDATE: {
+      return create_plan(static_cast<UpdateLogicalOperator&> (logical_operator), oper);
+    }break;
 
     default: {
       ASSERT(false, "unknown logical operator type");
@@ -241,6 +246,29 @@ RC PhysicalPlanGenerator::create_plan(ProjectLogicalOperator &project_oper, uniq
 
   LOG_TRACE("create a project physical operator");
   return rc;
+}
+
+RC PhysicalPlanGenerator::create_plan(UpdateLogicalOperator &update_per, unique_ptr<PhysicalOperator> &oper) {
+  auto table = update_per.table();
+  const Value* values = update_per.value();
+  UpdatePhysicalOperator *up = new UpdatePhysicalOperator(table, values, update_per.value_count(), update_per.field_meta());
+  std::vector<std::unique_ptr<LogicalOperator>> &children = update_per.children();
+  std::unique_ptr<PhysicalOperator> child_phy_oper;
+  RC rc;
+  if (!children.empty()) {
+    auto child_log_oper = children.front().get();
+    rc = create(*child_log_oper, child_phy_oper);
+    if (OB_FAIL(rc)) {
+      LOG_WARN("failed to create update logical operator's child physical operator. rc=%s", strrc(rc));
+      return rc;
+    }
+  }
+  if (child_phy_oper) {
+    up->add_child(std::move(child_phy_oper));
+  }
+  oper.reset(up);
+  LOG_TRACE("create a update physical operator");
+  return RC::SUCCESS;
 }
 
 RC PhysicalPlanGenerator::create_plan(InsertLogicalOperator &insert_oper, unique_ptr<PhysicalOperator> &oper)

@@ -26,6 +26,7 @@ See the Mulan PSL v2 for more details. */
 #include "sql/operator/project_logical_operator.h"
 #include "sql/operator/table_get_logical_operator.h"
 #include "sql/operator/group_by_logical_operator.h"
+#include "sql/operator/update_logical_operator.h"
 
 #include "sql/stmt/calc_stmt.h"
 #include "sql/stmt/delete_stmt.h"
@@ -34,7 +35,7 @@ See the Mulan PSL v2 for more details. */
 #include "sql/stmt/insert_stmt.h"
 #include "sql/stmt/select_stmt.h"
 #include "sql/stmt/stmt.h"
-
+#include "sql/stmt/update_stmt.h"
 #include "sql/expr/expression_iterator.h"
 
 using namespace std;
@@ -60,6 +61,11 @@ RC LogicalPlanGenerator::create(Stmt *stmt, unique_ptr<LogicalOperator> &logical
       InsertStmt *insert_stmt = static_cast<InsertStmt *>(stmt);
 
       rc = create_plan(insert_stmt, logical_operator);
+    } break;
+    
+    case StmtType::UPDATE: {
+      UpdateStmt *update_stmt = static_cast<UpdateStmt*>(stmt);
+      rc = create_plan(update_stmt, logical_operator);
     } break;
 
     case StmtType::DELETE: {
@@ -184,6 +190,25 @@ RC LogicalPlanGenerator::create_plan(InsertStmt *insert_stmt, unique_ptr<Logical
 
   InsertLogicalOperator *insert_operator = new InsertLogicalOperator(table, values);
   logical_operator.reset(insert_operator);
+  return RC::SUCCESS;
+}
+
+RC LogicalPlanGenerator::create_plan(UpdateStmt* update_stmt, std::unique_ptr<LogicalOperator> &logical_operator) {
+  std::unique_ptr<LogicalOperator> table_oper(new TableGetLogicalOperator(update_stmt->table(), ReadWriteMode::READ_ONLY));
+  std::unique_ptr<LogicalOperator> predicate_oper;
+  auto rc = create_plan(update_stmt->filter(), predicate_oper);
+  if (OB_FAIL(rc)) {
+    LOG_WARN("failed to create predicate logical plan. rc=%s", strrc(rc));
+    return rc;
+  }
+  if (predicate_oper) {
+    if (table_oper) {
+      predicate_oper->add_child(std::move(table_oper));
+    }
+  }
+  UpdateLogicalOperator *update_oper = new UpdateLogicalOperator(update_stmt->table(), update_stmt->values(), update_stmt->value_amount(), update_stmt->field_meta());
+  update_oper->add_child(std::move(predicate_oper));
+  logical_operator.reset(update_oper);
   return RC::SUCCESS;
 }
 

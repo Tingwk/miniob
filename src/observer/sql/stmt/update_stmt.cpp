@@ -13,14 +13,30 @@ See the Mulan PSL v2 for more details. */
 //
 
 #include "sql/stmt/update_stmt.h"
-
-UpdateStmt::UpdateStmt(Table *table, Value *values, int value_amount)
-    : table_(table), values_(values), value_amount_(value_amount)
+#include "storage/db/db.h"
+#include "sql/parser/parse.h"
+#include "sql/stmt/filter_stmt.h"
+UpdateStmt::UpdateStmt(Table *table, const Value *values, int value_amount, const FieldMeta* meta, FilterStmt* filter) : table_(table), values_(values), value_amount_(value_amount), field_meta_(meta), filter_(filter)
 {}
 
 RC UpdateStmt::create(Db *db, const UpdateSqlNode &update, Stmt *&stmt)
 {
   // TODO
-  stmt = nullptr;
-  return RC::INTERNAL;
+  auto tb = db->find_table(update.relation_name.c_str());
+  if (tb == nullptr) {
+    return RC::SCHEMA_TABLE_NOT_EXIST;
+  }
+  auto meta = tb->table_meta().field(update.attribute_name.c_str());
+  if (meta == nullptr) {
+    return RC::SCHEMA_FIELD_NOT_EXIST;
+  }
+  FilterStmt *filter = nullptr;
+  std::unordered_map<std::string, Table*> name_to_table{{update.relation_name,tb}};
+  auto rc = FilterStmt::create(db, tb, &name_to_table, &(update.conditions[0]), update.conditions.size(), filter);
+  if (rc != RC::SUCCESS) {
+    return rc;
+  }
+  auto update_stmt = new UpdateStmt(tb, &(update.value), 1, meta, filter);
+  stmt = update_stmt;
+  return RC::SUCCESS;
 }
