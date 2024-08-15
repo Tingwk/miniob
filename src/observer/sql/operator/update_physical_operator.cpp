@@ -1,8 +1,8 @@
-#include <string.h>
-#include "common/lang/string.h"
 #include "sql/operator/update_physical_operator.h"
 #include "sql/expr/tuple.h"
 #include "storage/index/index.h"
+#include <string.h>
+#include <cstring>
 
 UpdatePhysicalOperator::UpdatePhysicalOperator(Table* t, const Value* values, int value_amount, const FieldMeta* meta) 
 : tuple_(),table_(t), values_(values), value_amount_(value_amount),meta_(meta) {}
