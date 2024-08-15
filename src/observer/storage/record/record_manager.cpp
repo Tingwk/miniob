@@ -750,14 +750,14 @@ RC RecordFileHandler::get_record(const RID &rid, Record &record)
     return rc;
   }
 
-  Record inplace_record;
-  rc = page_handler->get_record(rid, inplace_record);
+  // Record inplace_record;
+  rc = page_handler->get_record(rid, record);
   if (OB_FAIL(rc)) {
     LOG_WARN("failed to get record from record page handle. rid=%s, rc=%s", rid.to_string().c_str(), strrc(rc));
     return rc;
   }
 
-  record.copy_data(inplace_record.data(), inplace_record.len());
+  // record.copy_data(inplace_record.data(), inplace_record.len());
   record.set_rid(rid);
   return rc;
 }
