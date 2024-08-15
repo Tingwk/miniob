@@ -161,6 +161,29 @@ RC Db::create_table(const char *table_name, span<const AttrInfoSqlNode> attribut
   return RC::SUCCESS;
 }
 
+RC Db::drop_table(const char* tb_name) {
+  auto pos = opened_tables_.find(tb_name);
+  ASSERT(pos != opened_tables_.end(), "table must exist");
+  std::vector<std::string> files;
+  files.reserve(2 + pos->second->table_meta().index_num());
+  files.emplace_back(table_data_file(this->path_.c_str(), tb_name));
+  files.emplace_back(table_meta_file(path_.c_str(), tb_name));
+  auto table = pos->second;
+  auto tb_meta = table->table_meta();
+  for (int i = 0; i < table->table_meta().index_num(); i++) {
+    auto index_meta = tb_meta.index(i);
+    files.emplace_back(table_index_file(path_.c_str(), tb_name, index_meta->name()));
+  }
+  delete pos->second;
+  opened_tables_.erase(pos);
+  for(auto &file : files) {
+    if (unlink(file.c_str()) < 0) {
+      LOG_INFO("failed to remove file %s", file.c_str());
+    }
+  }
+  return RC::SUCCESS;
+}
+
 Table *Db::find_table(const char *table_name) const
 {
   unordered_map<string, Table *>::const_iterator iter = opened_tables_.find(table_name);

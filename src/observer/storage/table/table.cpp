@@ -53,8 +53,7 @@ Table::~Table()
 }
 
 RC Table::create(Db *db, int32_t table_id, const char *path, const char *name, const char *base_dir,
-    span<const AttrInfoSqlNode> attributes, StorageFormat storage_format)
-{
+    span<const AttrInfoSqlNode> attributes, StorageFormat storage_format) {
   if (table_id < 0) {
     LOG_WARN("invalid table id. table_id=%d, table_name=%s", table_id, name);
     return RC::INVALID_ARGUMENT;
