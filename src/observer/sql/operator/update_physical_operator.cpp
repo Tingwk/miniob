@@ -1,6 +1,6 @@
 #include "sql/operator/update_physical_operator.h"
 #include "sql/expr/tuple.h"
-#include <string.h>
+#include <cstring>
 UpdatePhysicalOperator::UpdatePhysicalOperator(Table* t, const Value* values, int value_amount, const FieldMeta* meta) 
 : tuple_(),table_(t), values_(values), value_amount_(value_amount),meta_(meta) {}
 
@@ -23,8 +23,7 @@ RC UpdatePhysicalOperator::next() {
     if (OB_SUCC(rc)) {
       auto tuple = static_cast<RowTuple*>(children_[0]->current_tuple());
       auto record = tuple->record();
-      std::memcpy(record.data() + field_meta()->offset(), values_->data(), field_meta()->len());
-      
+      memcpy((void*)(record.data() + field_meta()->offset()), (void*)values_->data(), field_meta()->len());
     }
   }
   return RC::RECORD_EOF;
