@@ -32,7 +32,7 @@ RC UpdateStmt::create(Db *db, const UpdateSqlNode &update, Stmt *&stmt)
   }
   FilterStmt *filter = nullptr;
   std::unordered_map<std::string, Table*> name_to_table{{update.relation_name,tb}};
-  auto rc = FilterStmt::create(db, tb, &name_to_table, &(update.conditions[0]), update.conditions.size(), filter);
+  auto rc = FilterStmt::create(db, tb, &name_to_table, update.conditions.data(), static_cast<int>(update.conditions.size()), filter);
   if (rc != RC::SUCCESS) {
     return rc;
   }
