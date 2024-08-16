@@ -21,7 +21,7 @@ InsertStmt::InsertStmt(Table *table, const Value *values, int value_amount)
     : table_(table), values_(values), value_amount_(value_amount)
 {}
 
-RC InsertStmt::create(Db *db, const InsertSqlNode &inserts, Stmt *&stmt)
+RC InsertStmt::create(Db *db, InsertSqlNode &inserts, Stmt *&stmt)
 {
   const char *table_name = inserts.relation_name.c_str();
   if (nullptr == db || nullptr == table_name || inserts.values.empty()) {
@@ -38,7 +38,7 @@ RC InsertStmt::create(Db *db, const InsertSqlNode &inserts, Stmt *&stmt)
   }
 
   // check the fields number
-  const Value     *values     = inserts.values.data();
+  Value     *values     = inserts.values.data();
   const int        value_num  = static_cast<int>(inserts.values.size());
   const TableMeta &table_meta = table->table_meta();
   const int        field_num  = table_meta.field_num() - table_meta.sys_field_num();
@@ -53,7 +53,64 @@ RC InsertStmt::create(Db *db, const InsertSqlNode &inserts, Stmt *&stmt)
     const FieldMeta *field_meta = table_meta.field(i + sys_field_num);
     const AttrType   field_type = field_meta->type();
     const AttrType   value_type = values[i].attr_type();
-    if (field_type != value_type) {  // TODO try to convert the value type to field type
+    if (field_type == AttrType::DATES) {
+      // check whether date value is valid or not
+      if (value_type != AttrType::CHARS) {
+        return RC::SCHEMA_FIELD_TYPE_MISMATCH;
+      }
+      try {
+        auto val = values[i].get_string();
+        auto pos = val.find('-');
+        if (pos == string::npos) {
+          return RC::INVALID_ARGUMENT;
+        }
+        int year = std::stoi(val.substr(0, pos));
+        if (year < 1970) {
+          return RC::INVALID_ARGUMENT;
+        }
+        auto start = pos + 1; 
+        pos = val.find('-', start);
+        if (pos == string::npos) {
+          return RC::INVALID_ARGUMENT;
+        }
+        int month = std::stoi(val.substr(start, pos - start));
+        if (month < 1 || month > 12 || pos + 1 == val.size()) {
+          return RC::INVALID_ARGUMENT;
+        }
+        int day = std::stoi(val.substr(pos + 1));
+        bool is_leap_year = year % 100 == 0 ? (year % 400 == 0) : (year % 4 == 0);
+        if (day < 1 || day > 31) {
+          return RC::INVALID_ARGUMENT;
+        }
+        switch (month)
+        {
+        case 4:
+        case 6:
+        case 9:
+        case 11:
+          if (day > 30) {
+            return RC::INVALID_ARGUMENT;
+          }
+          break;
+        case 2:
+          if ((is_leap_year && day > 29) || (!is_leap_year && day > 28)) {
+            return RC::INVALID_ARGUMENT;
+          }
+        default:
+          break;
+        }
+        if (year == 2038 && month > 1) {
+          return RC::INVALID_ARGUMENT;
+        }
+        // uint32_t time_val = (static_cast<uint32_t>(year) << 16) | (static_cast<uint32_t>(month) << 8) | static_cast<uint32_t>(day);
+        int time_val = ((year & 0xffff) << 16) | ((month & 0xff) << 8) | (day & 0xff); 
+        // values[i].set_string(string(time_val+ "").c_str(), sizeof(uint32_t));
+        values[i].set_int(time_val);
+      } catch(std::exception e) {
+        return RC::INVALID_ARGUMENT;
+      }
+
+    } else if (field_type != value_type) {  // TODO try to convert the value type to field type
       LOG_WARN("field type mismatch. table=%s, field=%s, field type=%d, value_type=%d",
           table_name, field_meta->name(), field_type, value_type);
       return RC::SCHEMA_FIELD_TYPE_MISMATCH;
