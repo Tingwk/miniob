@@ -308,7 +308,8 @@ public:
 
   template <typename T>
   RC compare_column(const Column &left, const Column &right, std::vector<uint8_t> &result) const;
-
+private:
+  bool isMatch(std::string s, std::string p) const;
 private:
   CompOp                      comp_;
   std::unique_ptr<Expression> left_;

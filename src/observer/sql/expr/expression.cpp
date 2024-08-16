@@ -11,7 +11,7 @@ See the Mulan PSL v2 for more details. */
 //
 // Created by Wangyunlai on 2022/07/05.
 //
-
+#include "common/lang/vector.h"
 #include "sql/expr/expression.h"
 #include "sql/expr/tuple.h"
 #include "sql/expr/arithmetic_operator.hpp"
@@ -126,9 +126,104 @@ ComparisonExpr::ComparisonExpr(CompOp comp, unique_ptr<Expression> left, unique_
 
 ComparisonExpr::~ComparisonExpr() {}
 
+bool ComparisonExpr::isMatch(std::string s, std::string p) const {
+  int sz1 = s.size(), sz2 = p.size();
+  char buf[sz2 << 1];
+  memset(buf, 0, sizeof(buf));
+  int m = 0, n = 0;
+  for (int m = 0; m < sz2; m++) {
+    if (p[m] == '_') {
+      buf[n++] = '.';
+    } else if (p[m] == '%') {
+      buf[n] = '.';
+      buf[n+1] = '*';
+      n+=2;
+    } else {
+      buf[n++] = p[m];
+    }
+  }
+  p = string(buf);
+  sz2 = p.size();
+  cout << p << '\n';
+  m = 0;
+  n = 0;
+  while (m < sz2) {
+    p[n] = p[m];
+    n++;
+    if (p[m] == '*') {
+      while (m + 1 < sz2 && p[m+1] == '*') {
+        ++m;
+      }
+    }
+    ++m;
+  }
+  p.resize(n);
+  sz2 = p.size();
+  cout << p << ", size:" << sz2 << '\n';
+  if (sz1 == 0 && sz2 == 0)return true;
+  else if (sz1 == 0 || sz2 == 0) return false;
+  vector<vector<bool>> dp(sz2+1, vector<bool>(sz1+1,false));
+  dp[sz2][sz1] = true; // two empty strings match.
+  int i = sz2 - 1, j = sz1 - 1;
+  dp[i][j] = (p[i] == '.' ? true : (p[i] == s[j]));
+  for( --i; i>=0; --i) {
+    for (j = sz1-1; j >=0; --j) {
+      if (p[i] == '*') {
+        assert(i == sz2 - 1 || (i < sz2 - 1 && p[i+1] != '*'));
+        break;
+      } else if (p[i] == '.') {
+        if (p[i+1] == '*') { // matching any character any times.
+          dp[i][sz1] = dp[i+2][sz1];
+          if (i + 2 == sz2) {
+            dp[i][j] = true;
+          } else {
+            for (int t = j;t < sz1;++t) {
+              if (dp[i+2][t]) {
+                dp[i][j] = true; 
+                break;
+              }
+            }
+          }
+        } else {
+          dp[i][j] = dp[i+1][j+1];
+        }
+        
+      } else {
+        if (p[i+1] == '*') {
+          dp[i][sz1] = dp[i+2][sz1];
+          if (dp[i+2][j]){
+            dp[i][j] = true;
+          } else {
+            for (int t = j;t < sz1;++t) {
+              if (s[t] != p[i]) break;
+              if (dp[i+2][t+1]){
+                dp[i][j] = true;
+                break;
+              } // a
+            }
+          }
+        } else {
+          dp[i][j] = p[i] == s[j] && dp[i+1][j+1];
+        }
+      }
+    }
+  }
+  return dp[0][0];
+}
+
 RC ComparisonExpr::compare_value(const Value &left, const Value &right, bool &result) const
 {
   RC  rc         = RC::SUCCESS;
+  if (comp_ == CompOp::LK) {
+    if (left.attr_type() != AttrType::CHARS || right.attr_type() != AttrType::CHARS) {
+      LOG_ERROR("operands of like operator must be string");
+      return RC::INVALID_ARGUMENT;
+    }
+    std::string p(right.get_string());
+    std::string s(left.get_string());
+    result = isMatch(s, p);
+    return rc;
+  } 
   int cmp_result = left.compare(right);
   result         = false;
   switch (comp_) {
