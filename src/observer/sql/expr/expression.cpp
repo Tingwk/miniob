@@ -144,7 +144,7 @@ bool ComparisonExpr::isMatch(std::string s, std::string p) const {
   }
   p = string(buf);
   sz2 = p.size();
-  cout << p << '\n';
+  // cout << p << '\n';
   m = 0;
   n = 0;
   while (m < sz2) {
@@ -159,7 +159,7 @@ bool ComparisonExpr::isMatch(std::string s, std::string p) const {
   }
   p.resize(n);
   sz2 = p.size();
-  cout << p << ", size:" << sz2 << '\n';
+  // cout << p << ", size:" << sz2 << '\n';
   if (sz1 == 0 && sz2 == 0)return true;
   else if (sz1 == 0 || sz2 == 0) return false;
   vector<vector<bool>> dp(sz2+1, vector<bool>(sz1+1,false));
@@ -214,7 +214,7 @@ bool ComparisonExpr::isMatch(std::string s, std::string p) const {
 RC ComparisonExpr::compare_value(const Value &left, const Value &right, bool &result) const
 {
   RC  rc         = RC::SUCCESS;
-  if (comp_ == CompOp::LK) {
+  if (comp_ == CompOp::LK || comp_ == CompOp::NOT_LK) {
     if (left.attr_type() != AttrType::CHARS || right.attr_type() != AttrType::CHARS) {
       LOG_ERROR("operands of like operator must be string");
       return RC::INVALID_ARGUMENT;
@@ -222,6 +222,9 @@ RC ComparisonExpr::compare_value(const Value &left, const Value &right, bool &re
     std::string p(right.get_string());
     std::string s(left.get_string());
     result = isMatch(s, p);
+    if (comp_ == CompOp::NOT_LK) {
+      result = !result;
+    }
     return rc;
   } 
   int cmp_result = left.compare(right);
