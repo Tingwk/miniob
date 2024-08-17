@@ -690,6 +690,10 @@ unique_ptr<Aggregator> AggregateExpr::create_aggregator() const
       aggregator = make_unique<SumAggregator>();
       break;
     }
+    case Type::COUNT: {
+      aggregator = make_unique<CountAggregator>();
+      break;
+    }
     default: {
       ASSERT(false, "unsupported aggregate type");
       break;

@@ -37,6 +37,59 @@ AttrType attr_type_from_string(const char *s)
   return AttrType::UNDEFINED;
 }
 
+RC date_str_to_int(const std::string& val, int& date_int_val) {
+  try {
+    // auto val = values[i].get_string();
+    auto pos = val.find('-');
+    if (pos == string::npos) {
+      return RC::INTERNAL;
+    }
+    int year = std::stoi(val.substr(0, pos));
+    if (year < 1970) {
+      return RC::INTERNAL;
+    }
+    auto start = pos + 1; 
+    pos = val.find('-', start);
+    if (pos == string::npos) {
+      return RC::INTERNAL;
+    }
+    int month = std::stoi(val.substr(start, pos - start));
+    if (month < 1 || month > 12 || pos + 1 == val.size()) {
+      return RC::INTERNAL;
+    }
+    int day = std::stoi(val.substr(pos + 1));
+    bool is_leap_year = year % 100 == 0 ? (year % 400 == 0) : (year % 4 == 0);
+    if (day < 1 || day > 31) {
+      return RC::INTERNAL;
+    }
+    switch (month)
+    {
+    case 4:
+    case 6:
+    case 9:
+    case 11:
+      if (day > 30) {
+        return RC::INTERNAL;
+      }
+      break;
+    case 2:
+      if ((is_leap_year && day > 29) || (!is_leap_year && day > 28)) {
+        return RC::INTERNAL;
+      }
+    default:
+      break;
+    }
+    if (year == 2038 && month > 1) {
+      return RC::INTERNAL;
+    }
+    int time_val = ((year & 0xffff) << 16) | ((month & 0xff) << 8) | (day & 0xff); 
+    date_int_val = time_val;
+  } catch(std::exception e) {
+    return RC::INTERNAL;
+  }
+  return RC::SUCCESS;
+}
+
 Value::Value(int val) { set_int(val); }
 
 Value::Value(float val) { set_float(val); }
@@ -60,7 +113,11 @@ void Value::set_data(char *data, int length)
       uint32_t day = val & 0xff;
       uint32_t month = (val >> 8) & 0xff;
       uint32_t year = (val >> 16) & 0xffff;
-      std::string str = std::to_string(year) + "-" + std::to_string(month) + "-" +std::to_string(day);
+      std::string str = std::to_string(year) + "-";
+      if (month < 10) str += "0";
+      str = str + std::to_string(month) + "-";
+      if (day < 10) str += "0";
+      str = str + std::to_string(day);
       set_string(str.c_str(), str.size());
       length_               = length;
     } break;
@@ -185,6 +242,12 @@ int Value::compare(const Value &other) const
       case AttrType::BOOLEANS: {
         return common::compare_int((void *)&this->num_value_.bool_value_, (void *)&other.num_value_.bool_value_);
       }
+      case AttrType::DATES:{
+        int date_int_val1;
+        int date_int_val2;
+        ASSERT(date_str_to_int(this->get_string().c_str(), date_int_val1) == RC::SUCCESS && date_str_to_int(other.get_string().c_str(), date_int_val2) == RC::SUCCESS, "date strings must be valid");
+        return date_int_val1 > date_int_val2;
+      } break;
       default: {
         LOG_WARN("unsupported type: %d", this->attr_type_);
       }

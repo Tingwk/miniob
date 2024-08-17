@@ -18,7 +18,7 @@ See the Mulan PSL v2 for more details. */
 #include "common/rc.h"
 #include "storage/db/db.h"
 #include "storage/table/table.h"
-
+#include "sql/parser/value.h"
 FilterStmt::~FilterStmt()
 {
   for (FilterUnit *unit : filter_units_) {
@@ -102,10 +102,6 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
     FilterObj filter_obj;
     filter_obj.init_attr(Field(table, field));
     filter_unit->set_left(filter_obj);
-  } else {
-    FilterObj filter_obj;
-    filter_obj.init_value(condition.left_value);
-    filter_unit->set_left(filter_obj);
   }
 
   if (condition.right_is_attr) {
@@ -121,8 +117,64 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
     filter_unit->set_right(filter_obj);
   } else {
     FilterObj filter_obj;
-    filter_obj.init_value(condition.right_value);
+    if (condition.left_is_attr && filter_unit->left().field.attr_type() == AttrType::DATES) {
+      ASSERT(condition.right_value.attr_type() == AttrType::CHARS, "value type must be chars");
+      auto date_str = condition.right_value.get_string();
+      int date_val;
+      if (RC::SUCCESS != date_str_to_int(date_str.c_str(), date_val)) {
+        return rc;
+      }
+      int year = ((date_val >> 16) & 0xffff);
+      int month = ((date_val >> 8) & 0xff);
+      int day = (date_val & 0xff);
+      if (month < 10 || day < 10) {
+        string str = std::to_string(year) + "-";
+        if (month < 10)
+        str += "0";
+        str = str + std::to_string(month) + "-";
+        if (day < 10)
+          str += "0";
+        str += std::to_string(day);
+        Value v(str.c_str());
+        filter_obj.init_value(v);
+      } else {
+        filter_obj.init_value(condition.right_value);
+      }
+    } else {
+      filter_obj.init_value(condition.right_value);
+    }
     filter_unit->set_right(filter_obj);
+  }
+
+  if (!condition.left_is_attr) {
+    FilterObj filter_obj;
+    if (condition.right_is_attr && filter_unit->right().field.attr_type() == AttrType::DATES) {
+      ASSERT(condition.left_value.attr_type() == AttrType::CHARS, "value type must be chars");
+      auto date_str = condition.left_value.get_string();
+      int date_val;
+      if (RC::SUCCESS != date_str_to_int(date_str.c_str(), date_val)) {
+        return rc;
+      }
+      int year = ((date_val >> 16) & 0xffff);
+      int month = ((date_val >> 8) & 0xff);
+      int day = (date_val & 0xff);
+      if (month < 10 || day < 10) {
+        string str = std::to_string(year) + "-";
+        if (month < 10)
+        str += "0";
+        str = str + std::to_string(month) + "-";
+        if (day < 10)
+          str += "0";
+        str += std::to_string(day);
+        Value v(str.c_str());
+        filter_obj.init_value(v);
+      } else {
+        filter_obj.init_value(condition.left_value);
+      }
+    } else {
+      filter_obj.init_value(condition.left_value);
+    }
+    filter_unit->set_left(filter_obj);
   }
 
   filter_unit->set_comp(comp);

@@ -45,3 +45,17 @@ RC SumAggregator::evaluate(Value& result)
   result = value_;
   return RC::SUCCESS;
 }
+
+RC CountAggregator::accumulate(const Value & value) {
+  if (value.attr_type() == AttrType::UNDEFINED) {
+    value_.set_int(1);
+    return RC::SUCCESS;
+  }
+  value_.set_int(value_.get_int() + 1);
+  return RC::SUCCESS;
+}
+
+RC CountAggregator::evaluate(Value& result) {
+  result = value_;
+  return RC::SUCCESS;
+}

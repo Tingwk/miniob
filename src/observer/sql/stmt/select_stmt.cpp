@@ -19,7 +19,8 @@ See the Mulan PSL v2 for more details. */
 #include "storage/db/db.h"
 #include "storage/table/table.h"
 #include "sql/parser/expression_binder.h"
-
+#include "sql/expr/expression.h"
+#include <set>
 using namespace std;
 using namespace common;
 
@@ -39,7 +40,7 @@ RC SelectStmt::create(Db *db, SelectSqlNode &select_sql, Stmt *&stmt)
   }
 
   BinderContext binder_context;
-
+  bool has_aggregation {false};
   // collect tables in `from` statement
   vector<Table *>                tables;
   unordered_map<string, Table *> table_map;
@@ -62,31 +63,62 @@ RC SelectStmt::create(Db *db, SelectSqlNode &select_sql, Stmt *&stmt)
   }
 
   // collect query fields in `select` statement
-  vector<unique_ptr<Expression>> bound_expressions;
+  vector<std::unique_ptr<Expression>> bound_expressions;
   ExpressionBinder expression_binder(binder_context);
-  
-  for (unique_ptr<Expression> &expression : select_sql.expressions) {
+  int i = 0;
+  std::vector<int> aggregation_indices;
+  for (std::unique_ptr<Expression> &expression : select_sql.expressions) {
     RC rc = expression_binder.bind_expression(expression, bound_expressions);
     if (OB_FAIL(rc)) {
       LOG_INFO("bind expression failed. rc=%s", strrc(rc));
       return rc;
     }
+    if (bound_expressions[i]->type() == ExprType::AGGREGATION) {
+      has_aggregation = true;
+      aggregation_indices.push_back(i);
+    }
+    ++i;
   }
 
-  vector<unique_ptr<Expression>> group_by_expressions;
-  for (unique_ptr<Expression> &expression : select_sql.group_by) {
+  vector<std::unique_ptr<Expression>> group_by_expressions;
+  set<std::string> gropy_columns;
+  i = 0;
+  for (std::unique_ptr<Expression> &expression : select_sql.group_by) {
     RC rc = expression_binder.bind_expression(expression, group_by_expressions);
     if (OB_FAIL(rc)) {
       LOG_INFO("bind expression failed. rc=%s", strrc(rc));
       return rc;
     }
+    if (group_by_expressions[i]->type() == ExprType::FIELD) {
+      gropy_columns.insert(static_cast<FieldExpr*>(group_by_expressions[i].get())->field_name());
+    } 
   }
 
   Table *default_table = nullptr;
   if (tables.size() == 1) {
     default_table = tables[0];
   }
-
+  int valid_count{0};
+  if (has_aggregation) {
+    for (std::unique_ptr<Expression>& expr: bound_expressions) {
+      if (expr->type() == ExprType::FIELD && has_aggregation) {
+        if (group_by_expressions.empty()) {
+          // i.e. select id,count(id) from table;
+          return RC::INTERNAL;
+        }
+        auto field_expr = static_cast<FieldExpr*>(expr.get());
+        if (gropy_columns.find(field_expr->field_name()) == gropy_columns.end()) {
+          // field_name doesn't appear in group by clause.
+          return RC::INTERNAL;
+        }
+        ++valid_count;
+      }
+    }
+  }
+  if (valid_count != gropy_columns.size()) {
+    // The result of query `select id1, count(*) from table group by a,b` means nothing;
+    return RC::INTERNAL;
+  }
   // create filter statement in `where` statement
   FilterStmt *filter_stmt = nullptr;
   RC          rc          = FilterStmt::create(db,

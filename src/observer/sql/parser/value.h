@@ -15,7 +15,7 @@ See the Mulan PSL v2 for more details. */
 #pragma once
 
 #include <string>
-
+#include "common/rc.h"
 /**
  * @brief 属性的类型
  *
@@ -32,7 +32,7 @@ enum class AttrType
 
 const char *attr_type_to_string(AttrType type);
 AttrType    attr_type_from_string(const char *s);
-
+RC date_str_to_int(const std::string& str, int& date_int_val);
 /**
  * @brief 属性的值
  *
