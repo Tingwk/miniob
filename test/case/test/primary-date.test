@@ -1,5 +1,5 @@
 -- echo initialization
-CREATE TABLE date_table(id int, u_date date);
+
 CREATE INDEX index_id on date_table(u_date);
 
 -- echo 1. insert normal date data

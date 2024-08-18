@@ -17,6 +17,7 @@ See the Mulan PSL v2 for more details. */
 #include "common/lang/string.h"
 #include "common/log/log.h"
 #include <sstream>
+#include <cstdio>
 
 const char *ATTR_TYPE_NAME[] = {"undefined", "chars", "ints", "floats","dates", "booleans"};
 
@@ -40,28 +41,13 @@ AttrType attr_type_from_string(const char *s)
 RC date_str_to_int(const std::string& val, int& date_int_val) {
   try {
     // auto val = values[i].get_string();
-    auto pos = val.find('-');
-    if (pos == string::npos) {
+    int day,month,year;
+    day = month = year = -1;
+    int ret = sscanf(val.c_str(), "%d-%d-%d",&year,&month,&day);
+    if ((ret != 3) || (year < 1970) || (year > 2038) || (month < 1) || (month > 12) || (day < 1) || (day > 31) || (year == 2038 && month > 1)) {
       return RC::INTERNAL;
     }
-    int year = std::stoi(val.substr(0, pos));
-    if (year < 1970) {
-      return RC::INTERNAL;
-    }
-    auto start = pos + 1; 
-    pos = val.find('-', start);
-    if (pos == string::npos) {
-      return RC::INTERNAL;
-    }
-    int month = std::stoi(val.substr(start, pos - start));
-    if (month < 1 || month > 12 || pos + 1 == val.size()) {
-      return RC::INTERNAL;
-    }
-    int day = std::stoi(val.substr(pos + 1));
     bool is_leap_year = year % 100 == 0 ? (year % 400 == 0) : (year % 4 == 0);
-    if (day < 1 || day > 31) {
-      return RC::INTERNAL;
-    }
     switch (month)
     {
     case 4:
@@ -78,9 +64,6 @@ RC date_str_to_int(const std::string& val, int& date_int_val) {
       }
     default:
       break;
-    }
-    if (year == 2038 && month > 1) {
-      return RC::INTERNAL;
     }
     int time_val = ((year & 0xffff) << 16) | ((month & 0xff) << 8) | (day & 0xff); 
     date_int_val = time_val;

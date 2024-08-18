@@ -76,6 +76,9 @@ public:
       case AttrType::CHARS: {
         return common::compare_string((void *)v1, attr_length_, (void *)v2, attr_length_);
       }
+      case AttrType::DATES: {
+        return common::compare_int((void*)v1, (void*)v2);
+      }
       default: {
         ASSERT(false, "unknown attr type. %d", attr_type_);
         return 0;
