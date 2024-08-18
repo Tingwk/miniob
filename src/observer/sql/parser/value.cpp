@@ -84,7 +84,7 @@ RC date_str_to_int(const std::string& val, int& date_int_val) {
     }
     int time_val = ((year & 0xffff) << 16) | ((month & 0xff) << 8) | (day & 0xff); 
     date_int_val = time_val;
-  } catch(std::exception e) {
+  } catch(std::exception& e) {
     return RC::INTERNAL;
   }
   return RC::SUCCESS;

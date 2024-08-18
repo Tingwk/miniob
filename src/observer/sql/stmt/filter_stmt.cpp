@@ -121,7 +121,7 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
       ASSERT(condition.right_value.attr_type() == AttrType::CHARS, "value type must be chars");
       auto date_str = condition.right_value.get_string();
       int date_val;
-      if (RC::SUCCESS != date_str_to_int(date_str.c_str(), date_val)) {
+      if (rc = date_str_to_int(date_str.c_str(), date_val); rc != RC::SUCCESS) {
         return rc;
       }
       int year = ((date_val >> 16) & 0xffff);
@@ -152,7 +152,7 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
       ASSERT(condition.left_value.attr_type() == AttrType::CHARS, "value type must be chars");
       auto date_str = condition.left_value.get_string();
       int date_val;
-      if (RC::SUCCESS != date_str_to_int(date_str.c_str(), date_val)) {
+      if (rc = date_str_to_int(date_str.c_str(), date_val);RC::SUCCESS != rc) {
         return rc;
       }
       int year = ((date_val >> 16) & 0xffff);
