@@ -42,3 +42,34 @@ public:
   RC accumulate(const Value &value) override;
   RC evaluate(Value &result) override;
 };
+
+class MinAggregator : public Aggregator {
+public:
+  MinAggregator(AttrType type);
+  RC accumulate(const Value &value) override;
+  RC evaluate(Value &result) override;
+private:
+  AttrType type_;
+  bool started_;
+};
+
+class MaxAggregator : public Aggregator {
+public:
+  MaxAggregator(AttrType type) : type_(type) {}
+  RC accumulate(const Value &value) override;
+  RC evaluate(Value &result) override;
+private:
+  AttrType type_;
+};
+
+class AvgAggrgator : public Aggregator {
+public:
+  AvgAggrgator(AttrType type) :count_(0) , type_(type) {
+    //ASSERT(type == AttrType::INTS || type == AttrType::FLOATS, "only int & float are valid types");
+  }
+  RC accumulate(const Value &value) override;
+  RC evaluate(Value &result) override;
+private:
+  int count_;
+  AttrType type_;
+};

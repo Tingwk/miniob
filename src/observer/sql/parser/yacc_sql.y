@@ -499,6 +499,51 @@ expression_list:
       }
       $$->emplace($$->begin(), $1);
     }
+    | ID LBRACE RBRACE {
+      $$ = new std::vector<std::unique_ptr<Expression>>;
+      Expression *expr = new ErrorExpr();
+      $$->emplace_back(expr);
+      free($1);
+    }
+    | ID LBRACE RBRACE COMMA expression_list {
+      if ($5) {
+        delete $5;
+      }
+      $$ = new std::vector<std::unique_ptr<Expression>>;
+      Expression *expr = new ErrorExpr();
+      $$->emplace_back(expr);
+      free($1);
+    }
+
+    | ID LBRACE expression RBRACE {
+      $$ = new std::vector<std::unique_ptr<Expression>>;
+      auto expr = create_aggregate_expression($1, $3, sql_string, &@$);
+      $$->emplace_back(expr);
+      free($1);
+    }
+    | ID LBRACE expression RBRACE COMMA expression_list  {
+      $$ = $6;
+      int start = @1.first_column;
+      int end = @4.last_column;
+      auto expr = create_aggregate_expression($1, $3, sql_string, &@$);
+      expr->set_name(std::string(sql_string+ start, end- start + 1));
+      free($1);
+      $$->emplace($$->begin(), expr);
+    }
+    | ID LBRACE expression_list RBRACE {
+      delete $3;
+      $$ = new std::vector<std::unique_ptr<Expression>>;
+      Expression* expr = new ErrorExpr;
+      $$->emplace_back(expr);
+    }
+    | ID LBRACE expression_list RBRACE COMMA expression_list {
+      delete $3;
+      delete $6;
+      $$ = new std::vector<std::unique_ptr<Expression>>;
+      Expression* expr = new ErrorExpr;
+      $$->emplace_back(expr);
+    }
+    
     ;
 expression:
     expression '+' expression {
@@ -535,10 +580,7 @@ expression:
       $$ = new StarExpr();
     }
     // your code here
-    | ID LBRACE expression RBRACE {
-      $$ = create_aggregate_expression($1, $3, sql_string, &@$);
-      free($1);
-    }
+    
     ;
 
 rel_attr:

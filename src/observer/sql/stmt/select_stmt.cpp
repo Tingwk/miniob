@@ -68,6 +68,9 @@ RC SelectStmt::create(Db *db, SelectSqlNode &select_sql, Stmt *&stmt)
   int i = 0;
   std::vector<int> aggregation_indices;
   for (std::unique_ptr<Expression> &expression : select_sql.expressions) {
+    if (expression->type() == ExprType::ERROR_EXPR) {
+      return RC::INTERNAL;
+    }
     RC rc = expression_binder.bind_expression(expression, bound_expressions);
     if (OB_FAIL(rc)) {
       LOG_INFO("bind expression failed. rc=%s", strrc(rc));
@@ -76,6 +79,7 @@ RC SelectStmt::create(Db *db, SelectSqlNode &select_sql, Stmt *&stmt)
     if (bound_expressions[i]->type() == ExprType::AGGREGATION) {
       has_aggregation = true;
       aggregation_indices.push_back(i);
+      
     }
     ++i;
   }

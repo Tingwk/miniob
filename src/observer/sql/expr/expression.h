@@ -39,7 +39,7 @@ enum class ExprType
   STAR,                 ///< 星号，表示所有字段
   UNBOUND_FIELD,        ///< 未绑定的字段，需要在resolver阶段解析为FieldExpr
   UNBOUND_AGGREGATION,  ///< 未绑定的聚合函数，需要在resolver阶段解析为AggregateExpr
-
+  ERROR_EXPR,   ///< 用于表示无法解析,如果发现了此类expression，直接返回。
   FIELD,        ///< 字段。在实际执行时，根据行数据内容提取对应字段的值
   VALUE,        ///< 常量值
   CAST,         ///< 需要做类型转换的表达式
@@ -468,4 +468,11 @@ public:
 private:
   Type                        aggregate_type_;
   std::unique_ptr<Expression> child_;
+};
+
+class ErrorExpr : public Expression {
+public:
+  RC get_value(const Tuple &tuple, Value &value) const override { return RC::INVALID_ARGUMENT;}
+  AttrType value_type() const override { return AttrType::UNDEFINED; }
+  ExprType type() const override { return ExprType::ERROR_EXPR; }
 };

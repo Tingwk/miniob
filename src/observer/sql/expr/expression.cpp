@@ -694,6 +694,15 @@ unique_ptr<Aggregator> AggregateExpr::create_aggregator() const
       aggregator = make_unique<CountAggregator>();
       break;
     }
+    case Type::AVG :{
+      aggregator = make_unique<AvgAggrgator>(value_type());
+    } break;
+    case Type::MIN: {
+      aggregator = make_unique<MinAggregator>(value_type());
+    } break;
+    case Type::MAX: {
+      aggregator = make_unique<MaxAggregator> (value_type());
+    }
     default: {
       ASSERT(false, "unsupported aggregate type");
       break;

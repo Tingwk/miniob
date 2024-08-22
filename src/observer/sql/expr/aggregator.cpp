@@ -14,7 +14,7 @@ See the Mulan PSL v2 for more details. */
 
 #include "sql/expr/aggregator.h"
 #include "common/log/log.h"
-
+#include "common/lang/comparator.h"
 RC SumAggregator::accumulate(const Value &value)
 {
   if (value_.attr_type() == AttrType::UNDEFINED) {
@@ -57,5 +57,108 @@ RC CountAggregator::accumulate(const Value & value) {
 
 RC CountAggregator::evaluate(Value& result) {
   result = value_;
+  return RC::SUCCESS;
+}
+
+MinAggregator::MinAggregator(AttrType type) : type_(type), started_(false) {}
+RC MinAggregator::accumulate(const Value& value) {
+  if (!started_) {
+    value_ = value;
+    started_ = true;
+  } else {
+    switch (type_) {
+      case AttrType::INTS: 
+      case AttrType::DATES:
+        if (value.get_int() < value_.get_int()) {
+          value_ = value;
+        }
+      break;
+      case AttrType::FLOATS: {
+        if (value.get_float() < value_.get_float()) {
+          value_ = value;
+        }
+      } break;
+      case AttrType::CHARS: {
+        auto str1 = value.get_string();
+        auto str2 = value_.get_string();
+        if (common::compare_string((void*)(str1.c_str()), str1.size(), (void*)(str2.c_str()), str2.size()) < 0) {
+          value_ = value;
+        }
+      } break;
+      default:
+        // unsupported type.
+        return RC::INVALID_ARGUMENT;
+      break;
+    }
+  }
+  return RC::SUCCESS;
+}
+
+RC MinAggregator::evaluate(Value &result) {
+  result = value_;
+  return RC::SUCCESS;
+}
+
+RC MaxAggregator::accumulate(const Value& value) {
+  if (value_.attr_type() == AttrType::UNDEFINED) {
+    value_ = value;
+  } else {
+    switch (type_) {
+      case AttrType::INTS: 
+      case AttrType::DATES:
+        if (value.get_int() > value_.get_int()) {
+          value_ = value;
+        }
+      break;
+      case AttrType::FLOATS: {
+        if (value.get_float() > value_.get_float()) {
+          value_ = value;
+        }
+      } break;
+      case AttrType::CHARS: {
+        auto str1 = value.get_string();
+        auto str2 = value_.get_string();
+        if (common::compare_string((void*)(str1.c_str()), str1.size(), (void*)(str2.c_str()), str2.size()) > 0) {
+          value_ = value;
+        }
+      } break;
+      default:
+        // unsupported type.
+        return RC::INVALID_ARGUMENT;
+      break;
+    }
+  }
+  return RC::SUCCESS;
+}
+
+RC MaxAggregator::evaluate(Value& result) {
+  result = value_;
+  return RC::SUCCESS;
+}
+
+RC AvgAggrgator::accumulate(const Value& v) {
+  if (count_ == 0) {
+    value_ = v;
+  } else {
+    if (type_ == AttrType::INTS) {
+      value_.set_int(value_.get_int() + v.get_int());
+    } else {
+      value_.set_float(value_.get_float() + v.get_float());
+    }
+  }
+  ++count_;
+  return RC::SUCCESS;
+}
+
+RC AvgAggrgator::evaluate(Value& v) {
+  if (count_ == 0) {
+    v.set_float(0.0);
+  } else {
+    if (type_ == AttrType::INTS) {
+      v.set_float(value_.get_int() * 1.0 / count_);
+    } else {
+      v.set_float(value_.get_float() / count_);
+    }
+  }
   return RC::SUCCESS;
 }
