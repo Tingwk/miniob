@@ -21,15 +21,13 @@ See the Mulan PSL v2 for more details. */
 
 const char *ATTR_TYPE_NAME[] = {"undefined", "chars", "ints", "floats","dates", "booleans"};
 
-const char *attr_type_to_string(AttrType type)
-{
+const char *attr_type_to_string(AttrType type) {
   if (type >= AttrType::UNDEFINED && type <= AttrType::BOOLEANS) {
     return ATTR_TYPE_NAME[static_cast<int>(type)];
   }
   return "unknown";
 }
-AttrType attr_type_from_string(const char *s)
-{
+AttrType attr_type_from_string(const char *s) {
   for (unsigned int i = 0; i < sizeof(ATTR_TYPE_NAME) / sizeof(ATTR_TYPE_NAME[0]); i++) {
     if (0 == strcmp(ATTR_TYPE_NAME[i], s)) {
       return (AttrType)i;
@@ -37,14 +35,14 @@ AttrType attr_type_from_string(const char *s)
   }
   return AttrType::UNDEFINED;
 }
-
 RC date_str_to_int(const std::string& val, int& date_int_val) {
   try {
     // auto val = values[i].get_string();
     int day,month,year;
     day = month = year = -1;
     int ret = sscanf(val.c_str(), "%d-%d-%d",&year,&month,&day);
-    if ((ret != 3) || (year < 1970) || (year > 2038) || (month < 1) || (month > 12) || (day < 1) || (day > 31) || (year == 2038 && month > 1)) {
+    
+    if ((ret != 3) || (year < 0) || (month < 1) || (month > 12) || (day < 1) || (day > 31)) {
       return RC::INTERNAL;
     }
     bool is_leap_year = year % 100 == 0 ? (year % 400 == 0) : (year % 4 == 0);
@@ -92,17 +90,8 @@ void Value::set_data(char *data, int length)
       length_               = length;
     } break;
      case AttrType::DATES: {
-      auto val = *(uint32_t*)data;
-      uint32_t day = val & 0xff;
-      uint32_t month = (val >> 8) & 0xff;
-      uint32_t year = (val >> 16) & 0xffff;
-      std::string str = std::to_string(year) + "-";
-      if (month < 10) str += "0";
-      str = str + std::to_string(month) + "-";
-      if (day < 10) str += "0";
-      str = str + std::to_string(day);
-      set_string(str.c_str(), str.size());
-      length_               = length;
+      num_value_.int_value_ = *(int*)data;
+      length_ = length;
     } break;
     case AttrType::FLOATS: {
       num_value_.float_value_ = *(float *)data;
@@ -117,27 +106,29 @@ void Value::set_data(char *data, int length)
     } break;
   }
 }
-void Value::set_int(int val)
-{
+void Value::set_int(int val) {
   attr_type_            = AttrType::INTS;
   num_value_.int_value_ = val;
   length_               = sizeof(val);
 }
 
-void Value::set_float(float val)
-{
+void Value::set_date(int val) {
+  attr_type_ = AttrType::DATES;
+  num_value_.int_value_ = val;
+  length_ = sizeof(val);
+}
+
+void Value::set_float(float val) {
   attr_type_              = AttrType::FLOATS;
   num_value_.float_value_ = val;
   length_                 = sizeof(val);
 }
-void Value::set_boolean(bool val)
-{
+void Value::set_boolean(bool val) {
   attr_type_             = AttrType::BOOLEANS;
   num_value_.bool_value_ = val;
   length_                = sizeof(val);
 }
-void Value::set_string(const char *s, int len /*= 0*/)
-{
+void Value::set_string(const char *s, int len /*= 0*/) {
   attr_type_ = AttrType::CHARS;
   if (len > 0) {
     len = strnlen(s, len);
@@ -148,8 +139,7 @@ void Value::set_string(const char *s, int len /*= 0*/)
   length_ = str_value_.length();
 }
 
-void Value::set_value(const Value &value)
-{
+void Value::set_value(const Value &value) {
   switch (value.attr_type_) {
     case AttrType::INTS: {
       set_int(value.get_int());
@@ -196,6 +186,9 @@ std::string Value::to_string() const
     case AttrType::BOOLEANS: {
       os << num_value_.bool_value_;
     } break;
+    case AttrType::DATES: {
+      os << get_date();
+    } break;
     case AttrType::CHARS: {
       os << str_value_;
     } break;
@@ -226,10 +219,7 @@ int Value::compare(const Value &other) const
         return common::compare_int((void *)&this->num_value_.bool_value_, (void *)&other.num_value_.bool_value_);
       }
       case AttrType::DATES:{
-        int date_int_val1;
-        int date_int_val2;
-        ASSERT(date_str_to_int(this->get_string().c_str(), date_int_val1) == RC::SUCCESS && date_str_to_int(other.get_string().c_str(), date_int_val2) == RC::SUCCESS, "date strings must be valid");
-        return date_int_val1 > date_int_val2;
+        return common::compare_int((void *)&num_value_.int_value_, (void *)&other.num_value_.int_value_);
       } break;
       default: {
         LOG_WARN("unsupported type: %d", this->attr_type_);
@@ -341,4 +331,19 @@ bool Value::get_boolean() const
     }
   }
   return false;
+}
+
+std::string Value::get_date() const {
+  std::stringstream ss;
+  int val = num_value_.int_value_;
+  ss << std::to_string((val >> 16) & 0xffff) << "-";
+  int month = (val >> 8) & 0xff;
+  if (month < 10)
+    ss << "0";
+  ss << month << "-";
+  int day = (val & 0xff);
+  if (day < 10)
+    ss << "0";
+  ss << day;
+  return ss.str();
 }

@@ -124,22 +124,9 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
       if (rc = date_str_to_int(date_str.c_str(), date_val); rc != RC::SUCCESS) {
         return rc;
       }
-      int year = ((date_val >> 16) & 0xffff);
-      int month = ((date_val >> 8) & 0xff);
-      int day = (date_val & 0xff);
-      if (month < 10 || day < 10) {
-        string str = std::to_string(year) + "-";
-        if (month < 10)
-        str += "0";
-        str = str + std::to_string(month) + "-";
-        if (day < 10)
-          str += "0";
-        str += std::to_string(day);
-        Value v(str.c_str());
-        filter_obj.init_value(v);
-      } else {
-        filter_obj.init_value(condition.right_value);
-      }
+      Value v;
+      v.set_date(date_val);
+      filter_obj.init_value(v);
     } else {
       filter_obj.init_value(condition.right_value);
     }
@@ -155,22 +142,9 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
       if (rc = date_str_to_int(date_str.c_str(), date_val);RC::SUCCESS != rc) {
         return rc;
       }
-      int year = ((date_val >> 16) & 0xffff);
-      int month = ((date_val >> 8) & 0xff);
-      int day = (date_val & 0xff);
-      if (month < 10 || day < 10) {
-        string str = std::to_string(year) + "-";
-        if (month < 10)
-        str += "0";
-        str = str + std::to_string(month) + "-";
-        if (day < 10)
-          str += "0";
-        str += std::to_string(day);
-        Value v(str.c_str());
-        filter_obj.init_value(v);
-      } else {
-        filter_obj.init_value(condition.left_value);
-      }
+      Value v;
+      v.set_date(date_val);
+      filter_obj.init_value(v);
     } else {
       filter_obj.init_value(condition.left_value);
     }

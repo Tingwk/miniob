@@ -201,8 +201,7 @@ public:
     return RC::SUCCESS;
   }
 
-  RC spec_at(int index, TupleCellSpec &spec) const override
-  {
+  RC spec_at(int index, TupleCellSpec &spec) const override {
     const Field &field = speces_[index]->field();
     spec               = TupleCellSpec(table_->name(), field.field_name());
     return RC::SUCCESS;
