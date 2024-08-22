@@ -67,12 +67,21 @@ RC MinAggregator::accumulate(const Value& value) {
     started_ = true;
   } else {
     switch (type_) {
-      case AttrType::INTS: 
-      case AttrType::DATES:
+      case AttrType::INTS: {
         if (value.get_int() < value_.get_int()) {
           value_ = value;
         }
-      break;
+      } break;
+      case AttrType::DATES: {
+        // auto our_date = static_cast<uint32_t>(value_.get_int());
+        // auto other_date = static_cast<uint32_t>(value.get_int());
+        // if (our_date > other_date) {
+        //   value_ = value;
+        // }
+        if (value.get_uint() < value_.get_uint()) {
+          value_ = value;
+        }
+      } break;
       case AttrType::FLOATS: {
         if (value.get_float() < value_.get_float()) {
           value_ = value;
@@ -104,12 +113,18 @@ RC MaxAggregator::accumulate(const Value& value) {
     value_ = value;
   } else {
     switch (type_) {
-      case AttrType::INTS: 
-      case AttrType::DATES:
+      case AttrType::INTS: {
         if (value.get_int() > value_.get_int()) {
           value_ = value;
         }
-      break;
+      } break;
+      case AttrType::DATES: {
+        // auto our_date = static_cast<uint32_t>(value_.get_int());
+        // auto other_date = static_cast<uint32_t>(value.get_int());
+        if (value.get_uint() > value_.get_uint()) {
+          value_ = value;
+        }
+      } break;
       case AttrType::FLOATS: {
         if (value.get_float() > value_.get_float()) {
           value_ = value;

@@ -77,6 +77,7 @@ public:
    * 如果当前的类型与期望获取的类型不符，就会执行转换操作
    */
   int         get_int() const;
+  uint32_t    get_uint() const { return static_cast<uint32_t>(num_value_.int_value_);}
   float       get_float() const;
   std::string get_string() const;
   bool        get_boolean() const;
