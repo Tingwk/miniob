@@ -231,6 +231,16 @@ int Value::compare(const Value &other) const
   } else if (this->attr_type_ == AttrType::FLOATS && other.attr_type_ == AttrType::INTS) {
     float other_data = other.num_value_.int_value_;
     return common::compare_float((void *)&this->num_value_.float_value_, (void *)&other_data);
+  } else if (this->attr_type() == AttrType::CHARS) {
+    if (other.attr_type() == AttrType::FLOATS) {
+      auto f1 = get_float();
+      auto f2 = other.get_float();
+      return common::compare_float(&f1, &f2);
+    } else if (other.attr_type() == AttrType::INTS) {
+      int left = get_int();
+      int right = other.get_int();
+      return common::compare_int(&left, &right);
+    }
   }
   LOG_WARN("not supported");
   return -1;  // TODO return rc?
