@@ -59,6 +59,9 @@ RC ExecuteStage::handle_request_with_physical_operator(SQLStageEvent *sql_event)
   ASSERT(physical_operator != nullptr, "physical operator should not be null");
 
   SqlResult *sql_result = sql_event->session_event()->sql_result();
+  if (sql_event->stmt()->type() == StmtType::SELECT && (static_cast<SelectStmt*>(sql_event->stmt()))->tables().size() > 1) {
+    physical_operator->set_with_table_name();
+  }
   sql_result->set_operator(std::move(physical_operator));
   return rc;
 }

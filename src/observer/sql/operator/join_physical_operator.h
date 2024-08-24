@@ -34,11 +34,14 @@ public:
   RC     next() override;
   RC     close() override;
   Tuple *current_tuple() override;
+  void set_predicates(std::vector<std::unique_ptr<Expression>>&& predicates) { predicates_ = std::move(predicates); }
+  TupleSchema* schema() override { return &schemas_; }
+  void set_schema(const TupleSchema*);
 
 private:
   RC left_next();   //! 左表遍历下一条数据
   RC right_next();  //! 右表遍历下一条数据，如果上一轮结束了就重新开始新的一轮
-
+  bool find_position(TupleSchema* schemas, TupleCellSpec& spec, int& index);
 private:
   Trx *trx_ = nullptr;
 
@@ -50,4 +53,7 @@ private:
   JoinedTuple       joined_tuple_;         //! 当前关联的左右两个tuple
   bool              round_done_   = true;  //! 右表遍历的一轮是否结束
   bool              right_closed_ = true;  //! 右表算子是否已经关闭
+  bool finished = false;
+  TupleSchema schemas_;
+  std::vector<std::unique_ptr<Expression>> predicates_;
 };

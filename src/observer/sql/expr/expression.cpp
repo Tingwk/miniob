@@ -47,6 +47,8 @@ RC FieldExpr::get_column(Chunk &chunk, Column &column)
   return RC::SUCCESS;
 }
 
+
+
 bool ValueExpr::equal(const Expression &other) const
 {
   if (this == &other) {

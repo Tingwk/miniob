@@ -173,8 +173,7 @@ public:
 
   void set_record(Record *record) { this->record_ = record; }
 
-  void set_schema(const Table *table, const std::vector<FieldMeta> *fields)
-  {
+  void set_schema(const Table *table, const std::vector<FieldMeta> *fields) {
     table_ = table;
     // fix:join当中会多次调用右表的open,open当中会调用set_scheme，从而导致tuple当中会存储
     // 很多无意义的field和value，因此需要先clear掉
@@ -397,7 +396,8 @@ public:
 
   void set_left(Tuple *left) { left_ = left; }
   void set_right(Tuple *right) { right_ = right; }
-
+  auto left_tuple() -> Tuple* { return left_; }
+  auto right_tuple() -> Tuple* { return right_; }
   int cell_num() const override { return left_->cell_num() + right_->cell_num(); }
 
   RC cell_at(int index, Value &value) const override

@@ -18,8 +18,7 @@ See the Mulan PSL v2 for more details. */
 
 #include "sql/expr/expression.h"
 
-class BinderContext
-{
+class BinderContext {
 public:
   BinderContext()          = default;
   virtual ~BinderContext() = default;
@@ -38,8 +37,7 @@ private:
  * @brief 绑定表达式
  * @details 绑定表达式，就是在SQL解析后，得到文本描述的表达式，将表达式解析为具体的数据库对象
  */
-class ExpressionBinder
-{
+class ExpressionBinder {
 public:
   ExpressionBinder(BinderContext &context) : context_(context) {}
   virtual ~ExpressionBinder() = default;

@@ -31,7 +31,7 @@ public:
   virtual ~PredicatePhysicalOperator() = default;
 
   PhysicalOperatorType type() const override { return PhysicalOperatorType::PREDICATE; }
-
+  TupleSchema* schema() override { return children_[0]->schema(); }
   RC open(Trx *trx) override;
   RC next() override;
   RC close() override;

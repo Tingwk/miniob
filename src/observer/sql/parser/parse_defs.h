@@ -56,6 +56,12 @@ enum CompOp
   NO_OP
 };
 
+enum class JoinType {
+  INNER_JOIN,
+  LEFT_OUTER,
+  RIGHT_OUTER,
+};
+
 /**
  * @brief 表示一个条件比较
  * @ingroup SQLParser
@@ -75,6 +81,21 @@ struct ConditionSqlNode
                                  ///< 1时，操作符右边是属性名，0时，是属性值
   RelAttrSqlNode right_attr;     ///< right-hand side attribute if right_is_attr = TRUE 右边的属性
   Value          right_value;    ///< right-hand side value if right_is_attr = FALSE
+  ConditionSqlNode() = default;
+  ConditionSqlNode(const ConditionSqlNode& other):
+  left_is_attr(other.left_is_attr),left_value(other.left_value), left_attr(other.left_attr), comp(other.comp), right_is_attr(other.right_is_attr), 
+   right_attr(other.right_attr),  right_value(other.right_value) {}
+};
+
+struct JoinSqlNode {
+  JoinType type;
+  std::vector<ConditionSqlNode> conditions;
+};
+
+
+struct RelListSqlNode {
+  std::vector<std::string> relations;
+  std::vector<JoinSqlNode> joins;
 };
 
 /**
@@ -94,6 +115,7 @@ struct SelectSqlNode
   std::vector<std::string>                 relations;    ///< 查询的表
   std::vector<ConditionSqlNode>            conditions;   ///< 查询条件，使用AND串联起来多个条件
   std::vector<std::unique_ptr<Expression>> group_by;     ///< group by clause
+  std::vector<JoinSqlNode>        joins;
 };
 
 /**

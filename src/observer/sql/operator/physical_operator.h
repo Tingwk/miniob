@@ -76,7 +76,7 @@ public:
   virtual std::string param() const;
 
   virtual PhysicalOperatorType type() const = 0;
-
+  virtual TupleSchema* schema() { return nullptr; }
   virtual RC open(Trx *trx) = 0;
   virtual RC next() { return RC::UNIMPLENMENT; }
   virtual RC next(Chunk &chunk) { return RC::UNIMPLENMENT; }
@@ -90,6 +90,9 @@ public:
 
   std::vector<std::unique_ptr<PhysicalOperator>> &children() { return children_; }
 
+  void set_with_table_name() {with_table_name_ = true;}
+
 protected:
   std::vector<std::unique_ptr<PhysicalOperator>> children_;
+  bool with_table_name_{false};
 };

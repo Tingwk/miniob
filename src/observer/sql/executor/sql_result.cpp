@@ -33,8 +33,7 @@ RC SqlResult::open()
   return operator_->open(trx);
 }
 
-RC SqlResult::close()
-{
+RC SqlResult::close() {
   if (nullptr == operator_) {
     return RC::INVALID_ARGUMENT;
   }
@@ -75,8 +74,7 @@ RC SqlResult::next_chunk(Chunk &chunk)
   return rc;
 }
 
-void SqlResult::set_operator(std::unique_ptr<PhysicalOperator> oper)
-{
+void SqlResult::set_operator(std::unique_ptr<PhysicalOperator> oper) {
   ASSERT(operator_ == nullptr, "current operator is not null. Result is not closed?");
   operator_ = std::move(oper);
   operator_->tuple_schema(tuple_schema_);

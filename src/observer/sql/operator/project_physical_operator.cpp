@@ -61,10 +61,15 @@ Tuple *ProjectPhysicalOperator::current_tuple()
   return &tuple_;
 }
 
-RC ProjectPhysicalOperator::tuple_schema(TupleSchema &schema) const
-{
+RC ProjectPhysicalOperator::tuple_schema(TupleSchema &schema) const {
+  
   for (const unique_ptr<Expression> &expression : expressions_) {
-    schema.append_cell(expression->name());
+    if (with_table_name_) {
+      auto field_expr = static_cast<FieldExpr*>(expression.get());
+      schema.append_cell(field_expr->table_name(),field_expr->field_name());
+    } else {
+      schema.append_cell(expression->name());
+    }
   }
   return RC::SUCCESS;
 }

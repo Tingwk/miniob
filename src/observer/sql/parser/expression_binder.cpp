@@ -33,8 +33,7 @@ Table *BinderContext::find_table(const char *table_name) const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-static void wildcard_fields(Table *table, vector<unique_ptr<Expression>> &expressions)
-{
+static void wildcard_fields(Table *table, vector<unique_ptr<Expression>> &expressions) {
   const TableMeta &table_meta = table->table_meta();
   const int        field_num  = table_meta.field_num();
   for (int i = table_meta.sys_field_num(); i < field_num; i++) {
@@ -100,9 +99,7 @@ RC ExpressionBinder::bind_expression(unique_ptr<Expression> &expr, vector<unique
   return RC::INTERNAL;
 }
 
-RC ExpressionBinder::bind_star_expression(
-    unique_ptr<Expression> &expr, vector<unique_ptr<Expression>> &bound_expressions)
-{
+RC ExpressionBinder::bind_star_expression(unique_ptr<Expression> &expr, vector<unique_ptr<Expression>> &bound_expressions) {
   if (nullptr == expr) {
     return RC::SUCCESS;
   }
@@ -132,9 +129,7 @@ RC ExpressionBinder::bind_star_expression(
   return RC::SUCCESS;
 }
 
-RC ExpressionBinder::bind_unbound_field_expression(
-    unique_ptr<Expression> &expr, vector<unique_ptr<Expression>> &bound_expressions)
-{
+RC ExpressionBinder::bind_unbound_field_expression(unique_ptr<Expression> &expr, vector<unique_ptr<Expression>> &bound_expressions) {
   if (nullptr == expr) {
     return RC::SUCCESS;
   }
@@ -178,9 +173,11 @@ RC ExpressionBinder::bind_unbound_field_expression(
   return RC::SUCCESS;
 }
 
-RC ExpressionBinder::bind_field_expression(
-    unique_ptr<Expression> &field_expr, vector<unique_ptr<Expression>> &bound_expressions)
-{
+RC ExpressionBinder::bind_field_expression(unique_ptr<Expression> &field_expr, vector<unique_ptr<Expression>> &bound_expressions) {
+  ASSERT(field_expr->type() == ExprType::FIELD, "Shall be a field expression");
+  if (context_.query_tables().size() > 1) {
+    static_cast<FieldExpr*>(field_expr.get())->set_full_name();
+  }
   bound_expressions.emplace_back(std::move(field_expr));
   return RC::SUCCESS;
 }

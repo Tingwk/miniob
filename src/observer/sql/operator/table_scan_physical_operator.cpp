@@ -18,18 +18,19 @@ See the Mulan PSL v2 for more details. */
 
 using namespace std;
 
-RC TableScanPhysicalOperator::open(Trx *trx)
-{
+RC TableScanPhysicalOperator::open(Trx *trx) {
   RC rc = table_->get_record_scanner(record_scanner_, trx, mode_);
   if (rc == RC::SUCCESS) {
-    tuple_.set_schema(table_, table_->table_meta().field_metas());
+    if (!schema_setted_) {
+      schema_setted_ = true;
+      tuple_.set_schema(table_, table_->table_meta().field_metas());
+    }
   }
   trx_ = trx;
   return rc;
 }
 
-RC TableScanPhysicalOperator::next()
-{
+RC TableScanPhysicalOperator::next() {
   RC rc = RC::SUCCESS;
 
   bool filter_result = false;
@@ -55,18 +56,14 @@ RC TableScanPhysicalOperator::next()
 
 RC TableScanPhysicalOperator::close() { return record_scanner_.close_scan(); }
 
-Tuple *TableScanPhysicalOperator::current_tuple()
-{
+Tuple *TableScanPhysicalOperator::current_tuple() {
   tuple_.set_record(&current_record_);
   return &tuple_;
 }
 
 string TableScanPhysicalOperator::param() const { return table_->name(); }
 
-void TableScanPhysicalOperator::set_predicates(vector<unique_ptr<Expression>> &&exprs)
-{
-  predicates_ = std::move(exprs);
-}
+void TableScanPhysicalOperator::set_predicates(vector<unique_ptr<Expression>> &&exprs) { predicates_ = std::move(exprs); }
 
 RC TableScanPhysicalOperator::filter(RowTuple &tuple, bool &result)
 {

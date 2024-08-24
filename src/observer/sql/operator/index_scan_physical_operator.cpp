@@ -22,13 +22,16 @@ IndexScanPhysicalOperator::IndexScanPhysicalOperator(Table *table, Index *index,
       index_(index),
       mode_(mode),
       left_inclusive_(left_inclusive),
-      right_inclusive_(right_inclusive)
-{
+      right_inclusive_(right_inclusive) {
   if (left_value) {
     left_value_ = *left_value;
   }
   if (right_value) {
     right_value_ = *right_value;
+  }
+  auto tb_meta = table->table_meta();
+  for (int i = 0; i < tb_meta.field_num(); i++) {
+    schemas_.append_cell(table->name(), tb_meta.field(i)->name());
   }
 }
 

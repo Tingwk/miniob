@@ -28,6 +28,8 @@ public:
   virtual ~JoinLogicalOperator() = default;
 
   LogicalOperatorType type() const override { return LogicalOperatorType::JOIN; }
-
+  void set_predicates(std::vector<std::unique_ptr<Expression>>&& other) {predicates_ = std::move(other); }
+  std::vector<std::unique_ptr<Expression>>& predicates() { return predicates_; }
 private:
+  std::vector<std::unique_ptr<Expression>> predicates_;
 };

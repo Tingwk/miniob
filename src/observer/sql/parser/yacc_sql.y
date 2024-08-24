@@ -88,6 +88,8 @@ UnboundAggregateExpr *create_aggregate_expression(const char *aggregate_name,
         TRX_ROLLBACK
         INT_T
         DATE_T
+        INNER 
+        JOIN
         STRING_T
         FLOAT_T
         HELP
@@ -129,7 +131,8 @@ UnboundAggregateExpr *create_aggregate_expression(const char *aggregate_name,
   std::vector<Value> *                       value_list;
   std::vector<ConditionSqlNode> *            condition_list;
   std::vector<RelAttrSqlNode> *              rel_attr_list;
-  std::vector<std::string> *                 relation_list;
+//  std::vector<std::string> *                 relation_list;
+  RelListSqlNode*                            relation_list;
   char *                                     string;
   int                                        number;
   float                                      floats;
@@ -146,7 +149,7 @@ UnboundAggregateExpr *create_aggregate_expression(const char *aggregate_name,
 %type <condition>           condition
 %type <value>               value
 %type <number>              number
-%type <string>              relation
+// %type <string>              relation
 %type <comp>                comp_op
 %type <rel_attr>            rel_attr
 %type <attr_infos>          attr_def_list
@@ -451,7 +454,7 @@ update_stmt:      /*  update 语句的语法解析树*/
     }
     ;
 select_stmt:        /*  select 语句的语法解析树*/
-    SELECT expression_list FROM rel_list where group_by
+    SELECT expression_list FROM ID rel_list where group_by
     {
       $$ = new ParsedSqlNode(SCF_SELECT);
       if ($2 != nullptr) {
@@ -459,19 +462,22 @@ select_stmt:        /*  select 语句的语法解析树*/
         delete $2;
       }
 
-      if ($4 != nullptr) {
-        $$->selection.relations.swap(*$4);
-        delete $4;
-      }
-
       if ($5 != nullptr) {
-        $$->selection.conditions.swap(*$5);
+        $$->selection.relations.swap((*$5).relations);
+        $$->selection.joins.swap((*$5).joins);
         delete $5;
       }
-
+      $$->selection.relations.emplace($$->selection.relations.begin(), $4);
+      free($4);
+      
       if ($6 != nullptr) {
-        $$->selection.group_by.swap(*$6);
+        $$->selection.conditions.swap(*$6);
         delete $6;
+      }
+
+      if ($7 != nullptr) {
+        $$->selection.group_by.swap(*$7);
+        delete $7;
       }
     }
     ;
@@ -570,11 +576,16 @@ expression:
       $$->set_name(token_name(sql_string, &@$));
       delete $1;
     }
-    | rel_attr {
-      RelAttrSqlNode *node = $1;
-      $$ = new UnboundFieldExpr(node->relation_name, node->attribute_name);
+    | ID {
+      $$ = new UnboundFieldExpr("", $1);
       $$->set_name(token_name(sql_string, &@$));
-      delete $1;
+      free($1);
+    }
+    | ID DOT ID {
+      $$ = new UnboundFieldExpr($1, $3);
+      $$->set_name(token_name(sql_string,&@$));
+      free($1);
+      free($3);
     }
     | '*' {
       $$ = new StarExpr();
@@ -597,27 +608,60 @@ rel_attr:
       free($3);
     }
     ;
-
+/*
 relation:
     ID {
       $$ = $1;
     }
-    ;
+    ;*/
 rel_list:
-    relation {
-      $$ = new std::vector<std::string>();
-      $$->push_back($1);
-      free($1);
+     /* empty */
+    {
+      $$ = nullptr;
     }
-    | relation COMMA rel_list {
+    | COMMA ID rel_list {
+       // Cartesian Product
+      $$ = new RelListSqlNode();
       if ($3 != nullptr) {
-        $$ = $3;
-      } else {
-        $$ = new std::vector<std::string>;
+        $$->relations.swap(($3)->relations);
+        $$->joins.swap(($3)->joins);
+        delete $3;
       }
-
-      $$->insert($$->begin(), $1);
-      free($1);
+      $$->relations.emplace($$->relations.begin(), $2);
+      JoinSqlNode join;
+      join.type = JoinType::INNER_JOIN;
+      $$->joins.emplace($$->joins.begin(), join);
+      free($2);
+    }
+    | INNER JOIN ID rel_list {
+      $$ = new RelListSqlNode();
+      if ($4 != nullptr) {
+        $$->relations.swap(($4)->relations);
+        $$->joins.swap(($4)->joins);
+        delete $4;
+      }
+      JoinSqlNode join;
+      join.type = JoinType::INNER_JOIN;
+      $$->joins.emplace($$->joins.begin(), join);
+      $$->relations.emplace($$->relations.begin(), $3);
+      free($3);
+    }
+    | INNER JOIN ID ON condition_list rel_list {
+      $$ = new RelListSqlNode();
+      if ($6 != nullptr) {
+        $$->relations.swap(($6)->relations);
+        $$->joins.swap(($6)->joins);
+        delete $6;
+      }
+      JoinSqlNode join;
+      join.type = JoinType::INNER_JOIN;
+      if ($5 != nullptr) {
+        join.conditions.swap(*$5);
+        delete $5;
+      }
+      $$->joins.emplace($$->joins.begin() ,join);
+      $$->relations.emplace($$->relations.begin(), $3);
+      free($3);
     }
     ;
 

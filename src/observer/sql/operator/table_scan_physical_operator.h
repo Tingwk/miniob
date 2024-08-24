@@ -28,7 +28,12 @@ class Table;
 class TableScanPhysicalOperator : public PhysicalOperator
 {
 public:
-  TableScanPhysicalOperator(Table *table, ReadWriteMode mode) : table_(table), mode_(mode) {}
+  TableScanPhysicalOperator(Table *table, ReadWriteMode mode) : table_(table), mode_(mode), schema_setted_(false)  {
+    auto tb_meta = table->table_meta();
+    for (int i = 0; i < tb_meta.field_num(); i++) {
+      schemas_.append_cell(table->name(), tb_meta.field(i)->name());
+    }
+  }
 
   virtual ~TableScanPhysicalOperator() = default;
 
@@ -43,7 +48,7 @@ public:
   Tuple *current_tuple() override;
 
   void set_predicates(std::vector<std::unique_ptr<Expression>> &&exprs);
-
+  TupleSchema* schema() override { return &schemas_;}
 private:
   RC filter(RowTuple &tuple, bool &result);
 
@@ -54,5 +59,7 @@ private:
   RecordFileScanner                        record_scanner_;
   Record                                   current_record_;
   RowTuple                                 tuple_;
+  bool schema_setted_;
+  TupleSchema schemas_;
   std::vector<std::unique_ptr<Expression>> predicates_;  // TODO chang predicate to table tuple filter
 };

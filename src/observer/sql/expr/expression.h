@@ -204,7 +204,10 @@ public:
   RC get_column(Chunk &chunk, Column &column) override;
 
   RC get_value(const Tuple &tuple, Value &value) const override;
-
+  void set_full_name() {
+    string name = string(field_.table_name()) + "." + string(field_.field_name());
+    set_name(name.c_str());
+  }
 private:
   Field field_;
 };

@@ -84,7 +84,14 @@ public:
 
   static RC create_filter_unit(Db *db, Table *default_table, std::unordered_map<std::string, Table *> *tables,
       const ConditionSqlNode &condition, FilterUnit *&filter_unit);
-
+  void set_flag(int index, bool flag) {
+    if (index < 0 || index >= static_cast<int>(filter_flags_.size())) 
+      return;
+    filter_flags_[index] = flag;
+  }
+  RC filter_expression(std::vector<std::unique_ptr<Expression>>& cmp_exprs);
 private:
   std::vector<FilterUnit *> filter_units_;  // 默认当前都是AND关系
+  // used to mark whether a filter has been pushed down.
+  std::vector<bool> filter_flags_;       
 };

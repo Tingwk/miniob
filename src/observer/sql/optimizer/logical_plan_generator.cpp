@@ -86,29 +86,56 @@ RC LogicalPlanGenerator::create(Stmt *stmt, unique_ptr<LogicalOperator> &logical
   return rc;
 }
 
-RC LogicalPlanGenerator::create_plan(CalcStmt *calc_stmt, std::unique_ptr<LogicalOperator> &logical_operator)
-{
+RC LogicalPlanGenerator::create_plan(CalcStmt *calc_stmt, std::unique_ptr<LogicalOperator> &logical_operator) {
   logical_operator.reset(new CalcLogicalOperator(std::move(calc_stmt->expressions())));
   return RC::SUCCESS;
 }
 
-RC LogicalPlanGenerator::create_plan(SelectStmt *select_stmt, unique_ptr<LogicalOperator> &logical_operator)
-{
+RC LogicalPlanGenerator::create_plan(SelectStmt *select_stmt, unique_ptr<LogicalOperator> &logical_operator) {
   unique_ptr<LogicalOperator> *last_oper = nullptr;
 
   unique_ptr<LogicalOperator> table_oper(nullptr);
   last_oper = &table_oper;
 
   const std::vector<Table *> &tables = select_stmt->tables();
+  int k{0};
   for (Table *table : tables) {
 
-    unique_ptr<LogicalOperator> table_get_oper(new TableGetLogicalOperator(table, ReadWriteMode::READ_ONLY));
+    unique_ptr<TableGetLogicalOperator> table_get_oper(new TableGetLogicalOperator(table, ReadWriteMode::READ_ONLY));
+    auto filter_units = select_stmt->filter_stmt()->filter_units();
+    std::vector<std::unique_ptr<Expression>> predicates;
+    for (size_t i = 0; i < filter_units.size(); i++) {
+      auto unit = filter_units[i];
+      if (unit->left().is_attr && unit->left().field.table() == table && !unit->right().is_attr) {
+        std::unique_ptr<FieldExpr> left(new FieldExpr(unit->left().field));
+        std::unique_ptr<ValueExpr> right(new ValueExpr(unit->right().value));
+        std::unique_ptr<ComparisonExpr> cmp_expr (new ComparisonExpr(unit->comp(), std::move(left), std::move(right)));
+        predicates.emplace_back(std::move(cmp_expr));
+        select_stmt->filter_stmt()->set_flag(i, false);
+      } else if (unit->right().is_attr && unit->right().field.table() == table && !unit->left().is_attr) {
+        std::unique_ptr<ValueExpr> left (new ValueExpr(unit->left().value));
+        std::unique_ptr<FieldExpr> right(new FieldExpr(unit->right().field));
+        std::unique_ptr<ComparisonExpr> cmp_expr (new ComparisonExpr(unit->comp(), std::move(left), std::move(right)));
+        predicates.emplace_back(std::move(cmp_expr));
+        select_stmt->filter_stmt()->set_flag(i, false);
+      }
+    }
+    if (!predicates.empty()) {
+      // check whether cmp_expr is empty or not,
+      table_get_oper->set_predicates(std::move(predicates));
+    }
     if (table_oper == nullptr) {
       table_oper = std::move(table_get_oper);
     } else {
       JoinLogicalOperator *join_oper = new JoinLogicalOperator;
       join_oper->add_child(std::move(table_oper));
       join_oper->add_child(std::move(table_get_oper));
+      FilterStmt* filter = nullptr;
+      filter = select_stmt->on_conditions_at(k);
+      ++k;
+      std::vector<std::unique_ptr<Expression>> cmp_exprs;
+      filter->filter_expression(cmp_exprs);
+      join_oper->set_predicates(std::move(cmp_exprs));
       table_oper = unique_ptr<LogicalOperator>(join_oper);
     }
   }
@@ -153,25 +180,9 @@ RC LogicalPlanGenerator::create_plan(SelectStmt *select_stmt, unique_ptr<Logical
   return RC::SUCCESS;
 }
 
-RC LogicalPlanGenerator::create_plan(FilterStmt *filter_stmt, unique_ptr<LogicalOperator> &logical_operator)
-{
+RC LogicalPlanGenerator::create_plan(FilterStmt *filter_stmt, unique_ptr<LogicalOperator> &logical_operator) {
   std::vector<unique_ptr<Expression>> cmp_exprs;
-  const std::vector<FilterUnit *>    &filter_units = filter_stmt->filter_units();
-  for (const FilterUnit *filter_unit : filter_units) {
-    const FilterObj &filter_obj_left  = filter_unit->left();
-    const FilterObj &filter_obj_right = filter_unit->right();
-
-    unique_ptr<Expression> left(filter_obj_left.is_attr
-                                    ? static_cast<Expression *>(new FieldExpr(filter_obj_left.field))
-                                    : static_cast<Expression *>(new ValueExpr(filter_obj_left.value)));
-
-    unique_ptr<Expression> right(filter_obj_right.is_attr
-                                     ? static_cast<Expression *>(new FieldExpr(filter_obj_right.field))
-                                     : static_cast<Expression *>(new ValueExpr(filter_obj_right.value)));
-
-    ComparisonExpr *cmp_expr = new ComparisonExpr(filter_unit->comp(), std::move(left), std::move(right));
-    cmp_exprs.emplace_back(cmp_expr);
-  }
+  filter_stmt->filter_expression(cmp_exprs);
 
   unique_ptr<PredicateLogicalOperator> predicate_oper;
   if (!cmp_exprs.empty()) {

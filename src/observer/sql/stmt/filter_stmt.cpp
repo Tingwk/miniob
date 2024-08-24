@@ -27,6 +27,22 @@ FilterStmt::~FilterStmt()
   filter_units_.clear();
 }
 
+RC FilterStmt::filter_expression(std::vector<std::unique_ptr<Expression>>& cmp_exprs) {
+  for (size_t k = 0; k < filter_units_.size(); k++) {
+    if (!filter_flags_[k]) {
+      continue;
+    }
+    auto unit = filter_units_[k];
+    const FilterObj& left_obj = unit->left();
+    const FilterObj& right_obj = unit->right();
+    std::unique_ptr<Expression> left(left_obj.is_attr ? static_cast<Expression*>(new FieldExpr(left_obj.field)) : static_cast<Expression*>(new ValueExpr(left_obj.value)));
+    std::unique_ptr<Expression> right(right_obj.is_attr ? static_cast<Expression*>(new FieldExpr(right_obj.field)) : static_cast<Expression*>(new ValueExpr(right_obj.value)));
+    auto cmp_expr = new ComparisonExpr(unit->comp(), std::move(left), std::move(right));
+    cmp_exprs.emplace_back(cmp_expr);
+  }
+  return RC::SUCCESS;
+}
+
 RC FilterStmt::create(Db *db, Table *default_table, std::unordered_map<std::string, Table *> *tables,
     const ConditionSqlNode *conditions, int condition_num, FilterStmt *&stmt)
 {
@@ -34,6 +50,7 @@ RC FilterStmt::create(Db *db, Table *default_table, std::unordered_map<std::stri
   stmt  = nullptr;
 
   FilterStmt *tmp_stmt = new FilterStmt();
+  tmp_stmt->filter_flags_.resize(condition_num);
   for (int i = 0; i < condition_num; i++) {
     FilterUnit *filter_unit = nullptr;
 
@@ -44,8 +61,9 @@ RC FilterStmt::create(Db *db, Table *default_table, std::unordered_map<std::stri
       return rc;
     }
     tmp_stmt->filter_units_.push_back(filter_unit);
+    tmp_stmt->filter_flags_[i] = true;
   }
-
+  
   stmt = tmp_stmt;
   return rc;
 }

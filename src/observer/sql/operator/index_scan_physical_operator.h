@@ -39,7 +39,7 @@ public:
   RC close() override;
 
   Tuple *current_tuple() override;
-
+  TupleSchema* schema() override { return &schemas_; }
   void set_predicates(std::vector<std::unique_ptr<Expression>> &&exprs);
 
 private:
@@ -61,6 +61,6 @@ private:
   Value right_value_;
   bool  left_inclusive_  = false;
   bool  right_inclusive_ = false;
-
+  TupleSchema schemas_;
   std::vector<std::unique_ptr<Expression>> predicates_;
 };

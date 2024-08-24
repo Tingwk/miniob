@@ -102,7 +102,7 @@ RC SelectStmt::create(Db *db, SelectSqlNode &select_sql, Stmt *&stmt)
   if (tables.size() == 1) {
     default_table = tables[0];
   }
-  int valid_count{0};
+  size_t valid_count{0};
   if (has_aggregation) {
     for (std::unique_ptr<Expression>& expr: bound_expressions) {
       if (expr->type() == ExprType::FIELD && has_aggregation) {
@@ -123,9 +123,42 @@ RC SelectStmt::create(Db *db, SelectSqlNode &select_sql, Stmt *&stmt)
     // The result of query `select id1, count(*) from table group by a,b` means nothing;
     return RC::INTERNAL;
   }
+  std::vector<FilterStmt*> filters;
+  filters.resize(select_sql.joins.size());
+  RC rc;
+  std::unordered_map<std::string, Table*> name_to_table;
+  for (size_t k = 0; k < select_sql.joins.size(); k++) {
+    std::vector<ConditionSqlNode> useful_conditions;
+    for (auto &cond : select_sql.joins[k].conditions) {
+      if (cond.left_is_attr && cond.right_is_attr) {
+        if (rc = field_validation_check(db, cond.left_attr); rc != RC::SUCCESS) {
+          return rc;
+        }
+        if (rc = field_validation_check(db, cond.right_attr); rc != RC::SUCCESS) {
+          return rc;
+        }
+        name_to_table.insert({cond.left_attr.relation_name, db->find_table(cond.left_attr.relation_name.c_str())});
+        name_to_table.insert({cond.right_attr.relation_name, db->find_table(cond.right_attr.relation_name.c_str())});
+        useful_conditions.push_back(cond);
+      } else if ((cond.left_is_attr && !cond.right_is_attr) || (cond.right_is_attr && !cond.left_is_attr)) {
+        select_sql.conditions.push_back(cond);
+      } else {
+        useful_conditions.push_back(cond);
+      }
+    }
+    FilterStmt *filter_stmt = nullptr;
+    rc = FilterStmt::create(db, default_table, &name_to_table, useful_conditions.data(), static_cast<int>(useful_conditions.size()), filter_stmt);
+    if (rc != RC::SUCCESS) {
+      LOG_WARN("cannot construct filter stmt");
+      return rc;
+    }
+    filters[k] = filter_stmt;
+  }
+  
+  
   // create filter statement in `where` statement
   FilterStmt *filter_stmt = nullptr;
-  RC          rc          = FilterStmt::create(db,
+  rc          = FilterStmt::create(db,
       default_table,
       &table_map,
       select_sql.conditions.data(),
@@ -142,7 +175,29 @@ RC SelectStmt::create(Db *db, SelectSqlNode &select_sql, Stmt *&stmt)
   select_stmt->tables_.swap(tables);
   select_stmt->query_expressions_.swap(bound_expressions);
   select_stmt->filter_stmt_ = filter_stmt;
+  select_stmt->on_conditions_.swap(filters);
   select_stmt->group_by_.swap(group_by_expressions);
   stmt                      = select_stmt;
   return RC::SUCCESS;
+}
+
+RC SelectStmt::field_validation_check(Db* db, const RelAttrSqlNode& cond) {
+  auto tb = db->find_table(cond.relation_name.c_str());
+  if (tb == nullptr) {
+    LOG_WARN("no such table. db=%s, table_name=%s", db->name(), cond.relation_name.c_str());
+    return RC::SCHEMA_TABLE_NOT_EXIST;
+  }
+  auto field_meta = tb->table_meta().field(cond.attribute_name.c_str());
+  if (field_meta == nullptr) {
+    LOG_WARN("no such field. field=%s.%s.%s", db->name(), tb->name(), cond.attribute_name.c_str());
+    return RC::SCHEMA_FIELD_MISSING;
+  }
+  return RC::SUCCESS;
+}
+
+FilterStmt* SelectStmt::on_conditions_at(int index) {
+  if (index < 0 || index > static_cast<int>(on_conditions_.size())) {
+    return nullptr;
+  }
+  return on_conditions_[index];
 }
