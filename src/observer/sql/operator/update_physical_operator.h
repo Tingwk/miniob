@@ -12,7 +12,9 @@ public:
   RC next() override;
   RC close() override;
   Table* table() {return table_;}
-  const Value* values() {return values_;}
+  const Value* values() const {
+    return &values_;
+  }
   int value_amount() {return value_amount_;}
   const FieldMeta* field_meta() {return meta_;}
   Tuple *current_tuple() override { 
@@ -21,7 +23,7 @@ public:
 private:
   RowTuple tuple_;
   Table* table_;
-  const Value *values_;
+  Value values_;
   int value_amount_;
   const FieldMeta* meta_;
 };

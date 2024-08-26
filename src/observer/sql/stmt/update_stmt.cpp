@@ -30,12 +30,7 @@ RC UpdateStmt::create(Db *db, const UpdateSqlNode &update, Stmt *&stmt) {
   if (meta == nullptr) {
     return RC::SCHEMA_FIELD_NOT_EXIST;
   }
-  Value v(update.value);
-  if (meta->type() == AttrType::DATES) {
-    int date_val;
-    date_str_to_int(v.get_string(), date_val);
-    v.set_date(date_val);
-  } 
+ 
   FilterStmt *filter = nullptr;
   std::unordered_map<std::string, Table*> name_to_table{{update.relation_name,tb}};
   
@@ -43,7 +38,7 @@ RC UpdateStmt::create(Db *db, const UpdateSqlNode &update, Stmt *&stmt) {
   if (rc != RC::SUCCESS) {
     return rc;
   }
-  auto update_stmt = new UpdateStmt(tb, &v, 1, meta, filter);
+  auto update_stmt = new UpdateStmt(tb, &update.value, 1, meta, filter);
   stmt = update_stmt;
   return RC::SUCCESS;
 }
