@@ -17,7 +17,7 @@ See the Mulan PSL v2 for more details. */
 #include "storage/trx/trx.h"
 
 IndexScanPhysicalOperator::IndexScanPhysicalOperator(Table *table, Index *index, ReadWriteMode mode, const Value *left_value,
-    bool left_inclusive, const Value *right_value, bool right_inclusive)
+    bool left_inclusive, const Value *right_value, bool right_inclusive, const Field& field)
     : table_(table),
       index_(index),
       mode_(mode),
@@ -25,9 +25,13 @@ IndexScanPhysicalOperator::IndexScanPhysicalOperator(Table *table, Index *index,
       right_inclusive_(right_inclusive) {
   if (left_value) {
     left_value_ = *left_value;
+    left_key_.reset(new char [table->table_meta().record_size()]);
+    memcpy(left_key_.get() + field.meta()->offset(), left_value_.data(), field.meta()->len());
   }
   if (right_value) {
     right_value_ = *right_value;
+    right_key_.reset(new char[table->table_meta().record_size()]);
+    memcpy(right_key_.get() + field.meta()->offset(), right_value_.data(), field.meta()->len());
   }
   auto tb_meta = table->table_meta();
   for (int i = 0; i < tb_meta.field_num(); i++) {
@@ -40,11 +44,11 @@ RC IndexScanPhysicalOperator::open(Trx *trx) {
     return RC::INTERNAL;
   }
 
-  IndexScanner *index_scanner = index_->create_scanner(left_value_.data(),
-      left_value_.length(),
+  IndexScanner *index_scanner = index_->create_scanner(left_key_.get(),
+      table_->table_meta().record_size(),
       left_inclusive_,
-      right_value_.data(),
-      right_value_.length(),
+      right_key_.get(),
+      table_->table_meta().record_size(),
       right_inclusive_);
   if (nullptr == index_scanner) {
     LOG_WARN("failed to create index scanner");

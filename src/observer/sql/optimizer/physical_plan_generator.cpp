@@ -134,6 +134,7 @@ RC PhysicalPlanGenerator::create_plan(TableGetLogicalOperator &table_get_oper, u
 
   Index     *index      = nullptr;
   ValueExpr *value_expr = nullptr;
+  FieldExpr *field_expr = nullptr;
   for (auto &expr : predicates) {
     if (expr->type() == ExprType::COMPARISON) {
       auto comparison_expr = static_cast<ComparisonExpr *>(expr.get());
@@ -149,7 +150,7 @@ RC PhysicalPlanGenerator::create_plan(TableGetLogicalOperator &table_get_oper, u
         continue;
       }
 
-      FieldExpr *field_expr = nullptr;
+      
       if (left_expr->type() == ExprType::FIELD) {
         ASSERT(right_expr->type() == ExprType::VALUE, "right expr should be a value expr while left is field expr");
         field_expr = static_cast<FieldExpr *>(left_expr.get());
@@ -182,7 +183,9 @@ RC PhysicalPlanGenerator::create_plan(TableGetLogicalOperator &table_get_oper, u
         &value,
         true /*left_inclusive*/,
         &value,
-        true /*right_inclusive*/);
+        true /*right_inclusive*/,
+        field_expr->field()
+        );
 
     index_scan_oper->set_predicates(std::move(predicates));
     oper = unique_ptr<PhysicalOperator>(index_scan_oper);

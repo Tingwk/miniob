@@ -77,6 +77,7 @@ public:
           result = common::compare_string((void *)(v1 + offset1), offsets_sizes_[i].second, (void *)(v2 + offset1), offsets_sizes_[i].second);
         } break;
         case AttrType::DATES: {
+          
           result = common::compare_int((void*)(v1 + offset1), (void*)(v2 + offset1));
         } break;
         default: {

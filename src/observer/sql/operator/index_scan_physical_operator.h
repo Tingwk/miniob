@@ -26,7 +26,7 @@ class IndexScanPhysicalOperator : public PhysicalOperator
 {
 public:
   IndexScanPhysicalOperator(Table *table, Index *index, ReadWriteMode mode, const Value *left_value,
-      bool left_inclusive, const Value *right_value, bool right_inclusive);
+      bool left_inclusive, const Value *right_value, bool right_inclusive, const Field& field);
 
   virtual ~IndexScanPhysicalOperator() = default;
 
@@ -59,6 +59,8 @@ private:
 
   Value left_value_;
   Value right_value_;
+  std::unique_ptr<char[]> left_key_;
+  std::unique_ptr<char[]> right_key_;
   bool  left_inclusive_  = false;
   bool  right_inclusive_ = false;
   TupleSchema schemas_;
