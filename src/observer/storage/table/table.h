@@ -83,7 +83,7 @@ public:
   RC recover_insert_record(Record &record);
 
   // TODO refactor
-  RC create_index(Trx *trx, const FieldMeta *field_meta, const char *index_name);
+  RC create_index(Trx *trx, std::vector<const FieldMeta *>& field_metas, const char *index_name);
 
   RC get_record_scanner(RecordFileScanner &scanner, Trx *trx, ReadWriteMode mode);
 
@@ -120,6 +120,8 @@ private:
 public:
   Index *find_index(const char *index_name) const;
   Index *find_index_by_field(const char *field_name) const;
+  // e.g. index's key type:[id1,id2], then id2 is a part of index's key type.
+  void update_indexes(const char *field_name, const Record& record, const FieldMeta* meta, const Value* new_value);
 
 private:
   Db                *db_ = nullptr;

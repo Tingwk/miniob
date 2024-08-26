@@ -44,8 +44,7 @@ void TableMeta::swap(TableMeta &other) noexcept
 }
 
 RC TableMeta::init(int32_t table_id, const char *name, const std::vector<FieldMeta> *trx_fields,
-                   span<const AttrInfoSqlNode> attributes, StorageFormat storage_format)
-{
+                   span<const AttrInfoSqlNode> attributes, StorageFormat storage_format) {
   if (common::is_blank(name)) {
     LOG_ERROR("Name cannot be empty");
     return RC::INVALID_ARGUMENT;
@@ -150,10 +149,28 @@ const IndexMeta *TableMeta::index(const char *name) const
   return nullptr;
 }
 
-const IndexMeta *TableMeta::find_index_by_field(const char *field) const
-{
+const IndexMeta *TableMeta::find_index_by_field(std::vector<const char *>& field_names) const {
+  for (const IndexMeta& index : indexes_)  {
+    if (index.field_size() == field_names.size()) {
+      bool found{false};
+      for (size_t i = 0; i < index.field_size(); i++) {
+        if (0 != strcmp(index.field_name_at(i).c_str(), field_names[i])) {
+          found = true;
+          continue;
+        }
+      }
+      if (found) {
+        return &index;
+      }
+    }
+  }
+  return nullptr;
+}
+
+const IndexMeta *TableMeta::find_index_by_field(const char *field) const {
+
   for (const IndexMeta &index : indexes_) {
-    if (0 == strcmp(index.field(), field)) {
+    if (index.field_size() == 1 && 0 == strcmp(index.field_name_at(0).c_str(), field)) {
       return &index;
     }
   }

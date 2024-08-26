@@ -55,8 +55,7 @@ typedef enum
   LOG_ROTATE_LAST
 } LOG_ROTATE;
 
-class Log
-{
+class Log {
 public:
   Log(const string &log_name, const LOG_LEVEL log_level = LOG_LEVEL_INFO,
       const LOG_LEVEL console_level = LOG_LEVEL_WARN);
@@ -159,8 +158,7 @@ private:
   function<intptr_t()> context_getter_;
 };
 
-class LoggerFactory
-{
+class LoggerFactory {
 public:
   LoggerFactory();
   virtual ~LoggerFactory();

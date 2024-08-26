@@ -157,19 +157,25 @@ RC Table::open(Db *db, const char *meta_file, const char *base_dir)
   const int index_num = table_meta_.index_num();
   for (int i = 0; i < index_num; i++) {
     const IndexMeta *index_meta = table_meta_.index(i);
-    const FieldMeta *field_meta = table_meta_.field(index_meta->field());
-    if (field_meta == nullptr) {
-      LOG_ERROR("Found invalid index meta info which has a non-exists field. table=%s, index=%s, field=%s",
-                name(), index_meta->name(), index_meta->field());
-      // skip cleanup
-      //  do all cleanup action in destructive Table function
-      return RC::INTERNAL;
+    std::vector<const FieldMeta*> metas;
+    auto field_names = index_meta->field();
+    for (size_t i = 0; i < index_meta->field().size(); i++) {   
+      const FieldMeta *field_meta = table_meta_.field(field_names[i].c_str());
+      if (field_meta == nullptr) {
+        LOG_ERROR("Found invalid index meta info which has a non-exists field. table=%s, index=%s, field=%s",
+                  name(), index_meta->name(), index_meta->field());
+        // skip cleanup
+        //  do all cleanup action in destructive Table function
+        return RC::INTERNAL;
+      }
+      metas.emplace_back(field_meta);
     }
+    
 
     BplusTreeIndex *index      = new BplusTreeIndex();
     string          index_file = table_index_file(base_dir, name(), index_meta->name());
 
-    rc = index->open(this, index_file.c_str(), *index_meta, *field_meta);
+    rc = index->open(this, index_file.c_str(), *index_meta, metas);
     if (rc != RC::SUCCESS) {
       delete index;
       LOG_ERROR("Failed to open index. table=%s, index=%s, file=%s, rc=%s",
@@ -184,8 +190,7 @@ RC Table::open(Db *db, const char *meta_file, const char *base_dir)
   return rc;
 }
 
-RC Table::insert_record(Record &record)
-{
+RC Table::insert_record(Record &record) {
   RC rc = RC::SUCCESS;
   rc    = record_handler_->insert_record(record.data(), table_meta_.record_size(), &record.rid());
   if (rc != RC::SUCCESS) {
@@ -209,13 +214,11 @@ RC Table::insert_record(Record &record)
   return rc;
 }
 
-RC Table::visit_record(const RID &rid, function<bool(Record &)> visitor)
-{
+RC Table::visit_record(const RID &rid, function<bool(Record &)> visitor) {
   return record_handler_->visit_record(rid, visitor);
 }
 
-RC Table::get_record(const RID &rid, Record &record)
-{
+RC Table::get_record(const RID &rid, Record &record) {
   RC rc = record_handler_->get_record(rid, record);
   if (rc != RC::SUCCESS) {
     LOG_WARN("failed to visit record. rid=%s, table=%s, rc=%s", rid.to_string().c_str(), name(), strrc(rc));
@@ -254,8 +257,7 @@ const char *Table::name() const { return table_meta_.name(); }
 
 const TableMeta &Table::table_meta() const { return table_meta_; }
 
-RC Table::make_record(int value_num, const Value *values, Record &record)
-{
+RC Table::make_record(int value_num, const Value *values, Record &record) {
   // 检查字段类型是否一致
   if (value_num + table_meta_.sys_field_num() != table_meta_.field_num()) {
     LOG_WARN("Input values don't match the table's schema, table name:%s", table_meta_.name());
@@ -294,8 +296,7 @@ RC Table::make_record(int value_num, const Value *values, Record &record)
   return RC::SUCCESS;
 }
 
-RC Table::init_record_handler(const char *base_dir)
-{
+RC Table::init_record_handler(const char *base_dir) {
   string data_file = table_data_file(base_dir, table_meta_.name());
 
   BufferPoolManager &bpm = db_->buffer_pool_manager();
@@ -320,8 +321,7 @@ RC Table::init_record_handler(const char *base_dir)
   return rc;
 }
 
-RC Table::get_record_scanner(RecordFileScanner &scanner, Trx *trx, ReadWriteMode mode)
-{
+RC Table::get_record_scanner(RecordFileScanner &scanner, Trx *trx, ReadWriteMode mode) {
   RC rc = scanner.open_scan(this, *data_buffer_pool_, trx, db_->log_handler(), mode, nullptr);
   if (rc != RC::SUCCESS) {
     LOG_ERROR("failed to open scanner. rc=%s", strrc(rc));
@@ -329,8 +329,7 @@ RC Table::get_record_scanner(RecordFileScanner &scanner, Trx *trx, ReadWriteMode
   return rc;
 }
 
-RC Table::get_chunk_scanner(ChunkFileScanner &scanner, Trx *trx, ReadWriteMode mode)
-{
+RC Table::get_chunk_scanner(ChunkFileScanner &scanner, Trx *trx, ReadWriteMode mode) {
   RC rc = scanner.open_scan_chunk(this, *data_buffer_pool_, db_->log_handler(), mode);
   if (rc != RC::SUCCESS) {
     LOG_ERROR("failed to open scanner. rc=%s", strrc(rc));
@@ -338,19 +337,18 @@ RC Table::get_chunk_scanner(ChunkFileScanner &scanner, Trx *trx, ReadWriteMode m
   return rc;
 }
 
-RC Table::create_index(Trx *trx, const FieldMeta *field_meta, const char *index_name)
-{
-  if (common::is_blank(index_name) || nullptr == field_meta) {
+RC Table::create_index(Trx *trx, std::vector<const FieldMeta *>& field_metas, const char *index_name) {
+  if (common::is_blank(index_name) || field_metas.empty()) {
     LOG_INFO("Invalid input arguments, table name is %s, index_name is blank or attribute_name is blank", name());
     return RC::INVALID_ARGUMENT;
   }
 
   IndexMeta new_index_meta;
 
-  RC rc = new_index_meta.init(index_name, *field_meta);
+  RC rc = new_index_meta.init(index_name, field_metas);
   if (rc != RC::SUCCESS) {
-    LOG_INFO("Failed to init IndexMeta in table:%s, index_name:%s, field_name:%s", 
-             name(), index_name, field_meta->name());
+    LOG_INFO("Failed to init IndexMeta in table:%s, index_name:%s", 
+             name(), index_name);
     return rc;
   }
 
@@ -358,7 +356,7 @@ RC Table::create_index(Trx *trx, const FieldMeta *field_meta, const char *index_
   BplusTreeIndex *index      = new BplusTreeIndex();
   string          index_file = table_index_file(base_dir_.c_str(), name(), index_name);
 
-  rc = index->create(this, index_file.c_str(), new_index_meta, *field_meta);
+  rc = index->create(this, index_file.c_str(), new_index_meta, field_metas);
   if (rc != RC::SUCCESS) {
     delete index;
     LOG_ERROR("Failed to create bplus tree index. file name=%s, rc=%d:%s", index_file.c_str(), rc, strrc(rc));
@@ -436,8 +434,7 @@ RC Table::create_index(Trx *trx, const FieldMeta *field_meta, const char *index_
   return rc;
 }
 
-RC Table::delete_record(const RID &rid)
-{
+RC Table::delete_record(const RID &rid) {
   RC     rc = RC::SUCCESS;
   Record record;
   rc = get_record(rid, record);
@@ -448,8 +445,7 @@ RC Table::delete_record(const RID &rid)
   return delete_record(record);
 }
 
-RC Table::delete_record(const Record &record)
-{
+RC Table::delete_record(const Record &record) {
   RC rc = RC::SUCCESS;
   for (Index *index : indexes_) {
     rc = index->delete_entry(record.data(), &record.rid());
@@ -461,8 +457,7 @@ RC Table::delete_record(const Record &record)
   return rc;
 }
 
-RC Table::insert_entry_of_indexes(const char *record, const RID &rid)
-{
+RC Table::insert_entry_of_indexes(const char *record, const RID &rid) {
   RC rc = RC::SUCCESS;
   for (Index *index : indexes_) {
     rc = index->insert_entry(record, &rid);
@@ -487,8 +482,7 @@ RC Table::delete_entry_of_indexes(const char *record, const RID &rid, bool error
   return rc;
 }
 
-Index *Table::find_index(const char *index_name) const
-{
+Index *Table::find_index(const char *index_name) const {
   for (Index *index : indexes_) {
     if (0 == strcmp(index->index_meta().name(), index_name)) {
       return index;
@@ -496,8 +490,8 @@ Index *Table::find_index(const char *index_name) const
   }
   return nullptr;
 }
-Index *Table::find_index_by_field(const char *field_name) const
-{
+
+Index *Table::find_index_by_field(const char *field_name) const {
   const TableMeta &table_meta = this->table_meta();
   const IndexMeta *index_meta = table_meta.find_index_by_field(field_name);
   if (index_meta != nullptr) {
@@ -506,8 +500,38 @@ Index *Table::find_index_by_field(const char *field_name) const
   return nullptr;
 }
 
-RC Table::sync()
-{
+void Table::update_indexes(const char *field_name, const Record& record, const FieldMeta* meta, const Value* new_value) {
+  for(auto index : indexes_) {
+    auto field_names = index->index_meta().field();
+    size_t i;
+    for ( i = 0; i < field_names.size(); ++i) {
+      if (0 == strcmp(field_names[i].c_str(), field_name)) {
+        break;
+      }
+    }
+    if (i != field_names.size()) {
+      
+        // single key.
+      index->delete_entry(static_cast<const char*>(record.data()), &record.rid());
+      char buf[table_meta_.record_size()];
+      memcpy(buf, record.data(), table_meta_.record_size());
+      memcpy(buf + meta->offset(), new_value->data(), meta->len());
+      index->insert_entry(static_cast<const char*>(buf), &record.rid());
+      
+        // TODO(dwk) : optimize the update of multiple-key indexes.
+        // currently the updatation process states like the follow:
+        // if meta is the first key. do a range scan to return rids set.
+        // otherwise scan the whole index to get all the rids.
+        // delete all these entries.
+        // sort rids .
+        // 根据rid获取的record，修改record
+      
+    }
+  }
+  
+}
+
+RC Table::sync() {
   RC rc = RC::SUCCESS;
   for (Index *index : indexes_) {
     rc = index->sync();

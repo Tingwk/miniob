@@ -16,13 +16,13 @@ See the Mulan PSL v2 for more details. */
 
 #include <string>
 #include "common/rc.h"
+#include <vector>
 /**
  * @brief 属性的类型
  *
  */
-enum class AttrType
-{
-  UNDEFINED,
+enum class AttrType : int32_t {
+  UNDEFINED = 0,
   CHARS,     ///< 字符串类型
   INTS,      ///< 整数类型(4字节)
   FLOATS,    ///< 浮点数类型(4字节)
@@ -32,6 +32,7 @@ enum class AttrType
 
 const char *attr_type_to_string(AttrType type);
 AttrType    attr_type_from_string(const char *s);
+const char * attr_types_to_string(const std::vector<AttrType>& types);
 RC date_str_to_int(const std::string& str, int& date_int_val);
 /**
  * @brief 属性的值

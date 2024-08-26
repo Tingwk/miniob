@@ -274,8 +274,7 @@ RC DiskBufferPool::open_file(const char *file_name)
   return RC::SUCCESS;
 }
 
-RC DiskBufferPool::close_file()
-{
+RC DiskBufferPool::close_file() {
   RC rc = RC::SUCCESS;
   if (file_desc_ < 0) {
     return rc;

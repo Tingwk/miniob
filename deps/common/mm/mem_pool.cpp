@@ -14,8 +14,7 @@ See the Mulan PSL v2 for more details. */
 #include "common/mm/mem_pool.h"
 namespace common {
 
-int MemPoolItem::init(int item_size, bool dynamic, int pool_num, int item_num_per_pool)
-{
+int MemPoolItem::init(int item_size, bool dynamic, int pool_num, int item_num_per_pool) {
   if (pools.empty() == false) {
     LOG_WARN("Memory pool has been initialized, but still begin to be initialized, this->name:%s.", this->name.c_str());
     return 0;
@@ -101,8 +100,7 @@ int MemPoolItem::extend()
   return 0;
 }
 
-void *MemPoolItem::alloc()
-{
+void *MemPoolItem::alloc() {
   MUTEX_LOCK(&this->mutex);
   if (frees.empty() == true) {
     if (this->dynamic == false) {
@@ -126,8 +124,7 @@ void *MemPoolItem::alloc()
   return buffer;
 }
 
-MemPoolItem::item_unique_ptr MemPoolItem::alloc_unique_ptr()
-{
+MemPoolItem::item_unique_ptr MemPoolItem::alloc_unique_ptr() {
   void *item    = this->alloc();
   auto  deleter = [this](void *p) { this->free(p); };
   return MemPoolItem::item_unique_ptr(item, deleter);

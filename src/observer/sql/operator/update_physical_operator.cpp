@@ -26,18 +26,17 @@ RC UpdatePhysicalOperator::next() {
     if (OB_SUCC(rc)) {
       auto tuple = static_cast<RowTuple*>(children_[0]->current_tuple());
       auto record = tuple->record();
-      auto index = table_->find_index_by_field(meta_->name());
-      if (index != nullptr) {
-        index->delete_entry(record.data(), &record.rid());
-      }
-      auto field_len = meta_->len();
-      if (meta_->type() == AttrType::CHARS && values_->length() < field_len) {
-        field_len = values_->length() + 1;
-      }
-      std::memcpy((void*)(record.data() + field_meta()->offset()), (void*)values_->data(), field_len);
-      if (index != nullptr) {
-        index->insert_entry(record.data(), &record.rid());
-      }
+      // for (auto index : table_->table_meta().index())12345
+      table_->update_indexes(meta_->name(), record, meta_, values_);
+      
+      // auto field_len = meta_->len();
+      // if (meta_->type() == AttrType::CHARS && values_->length() < field_len) {
+      //   field_len = values_->length() + 1;
+      // }
+      // std::memcpy((void*)(record.data() + field_meta()->offset()), (void*)values_->data(), field_len);
+      // if (index != nullptr) {
+      //   index->insert_entry(record.data(), &record.rid());
+      // }
     }
   }
   return RC::RECORD_EOF;

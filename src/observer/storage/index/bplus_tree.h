@@ -42,8 +42,7 @@ class BplusTreeMiniTransaction;
  * @brief B+树的操作类型
  * @ingroup BPlusTree
  */
-enum class BplusTreeOperationType
-{
+enum class BplusTreeOperationType {
   READ,
   INSERT,
   DELETE,
@@ -53,41 +52,49 @@ enum class BplusTreeOperationType
  * @brief 属性比较(BplusTree)
  * @ingroup BPlusTree
  */
-class AttrComparator
-{
+class AttrComparator {
 public:
-  void init(AttrType type, int length)
-  {
-    attr_type_   = type;
+  void init(std::vector<AttrType>& types, std::vector<pair<int,int>>& offsets, int length) {
+    attr_types_ = types;
+    offsets_sizes_ = offsets;
     attr_length_ = length;
   }
 
   int attr_length() const { return attr_length_; }
 
-  int operator()(const char *v1, const char *v2) const
-  {
-    switch (attr_type_) {
-      case AttrType::INTS: {
-        return common::compare_int((void *)v1, (void *)v2);
-      } break;
-      case AttrType::FLOATS: {
-        return common::compare_float((void *)v1, (void *)v2);
+  int operator()(const char *v1, const char *v2) const {
+    int offset1{0};
+    for (size_t i = 0;i < attr_types_.size();++i ) {
+      int result;
+      switch (attr_types_[i]) {
+        case AttrType::INTS: {
+          result = common::compare_int((void *)(v1+offset1), (void *)(v2+offset1));
+        } break;
+        case AttrType::FLOATS: {
+          result = common::compare_float((void *)(v1+ offset1), (void *)(v2+ offset1));
+        } break;
+        case AttrType::CHARS: {
+          result = common::compare_string((void *)(v1 + offset1), offsets_sizes_[i].second, (void *)(v2 + offset1), offsets_sizes_[i].second);
+        } break;
+        case AttrType::DATES: {
+          result = common::compare_int((void*)(v1 + offset1), (void*)(v2 + offset1));
+        } break;
+        default: {
+          ASSERT(false, "unknown attr type. %d", attr_types_);
+          return 0;
+        }
       }
-      case AttrType::CHARS: {
-        return common::compare_string((void *)v1, attr_length_, (void *)v2, attr_length_);
+      if (result != 0) {
+        return result;
       }
-      case AttrType::DATES: {
-        return common::compare_int((void*)v1, (void*)v2);
-      }
-      default: {
-        ASSERT(false, "unknown attr type. %d", attr_type_);
-        return 0;
-      }
+      offset1 += offsets_sizes_[i].second;
     }
+    return 0;
   }
 
 private:
-  AttrType attr_type_;
+  std::vector<AttrType> attr_types_;
+  std::vector<pair<int,int>> offsets_sizes_;
   int      attr_length_;
 };
 
@@ -96,15 +103,13 @@ private:
  * @details BplusTree的键值除了字段属性，还有RID，是为了避免属性值重复而增加的。
  * @ingroup BPlusTree
  */
-class KeyComparator
-{
+class KeyComparator {
 public:
-  void init(AttrType type, int length) { attr_comparator_.init(type, length); }
+  void init(std::vector<AttrType>& types, std::vector<pair<int,int>>& off_sizes, int length) { attr_comparator_.init(types, off_sizes, length); }
 
   const AttrComparator &attr_comparator() const { return attr_comparator_; }
 
-  int operator()(const char *v1, const char *v2) const
-  {
+  int operator()(const char *v1, const char *v2) const {
     int result = attr_comparator_(v1, v2);
     if (result != 0) {
       return result;
@@ -123,25 +128,32 @@ private:
  * @brief 属性打印,调试使用(BplusTree)
  * @ingroup BPlusTree
  */
-class AttrPrinter
-{
+class AttrPrinter {
 public:
-  void init(AttrType type, int length)
-  {
-    attr_type_   = type;
+  void init(std::vector<AttrType>& type, std::vector<pair<int,int>>& off_sizes, int length) {
+    attr_types_   = type;
     attr_length_ = length;
+    off_sizes_ = off_sizes;
   }
 
   int attr_length() const { return attr_length_; }
 
-  string operator()(const char *v) const
-  {
-    Value value(attr_type_, const_cast<char *>(v), attr_length_);
-    return value.to_string();
+  string operator()(const char *v) const {
+    stringstream ss;
+    size_t i = 0;
+    Value value(attr_types_[i], const_cast<char *>(v) + off_sizes_[i].first, off_sizes_[i].second);
+    ss << value.to_string() ;
+    for (++i; i < attr_types_.size(); i++) {
+      ss << ",";
+      Value val(attr_types_[i], const_cast<char *>(v) + off_sizes_[i].first, off_sizes_[i].second);
+      ss << val.to_string();
+    }
+    return ss.str();
   }
 
 private:
-  AttrType attr_type_;
+  std::vector<AttrType> attr_types_;
+  std::vector<pair<int,int>> off_sizes_;
   int      attr_length_;
 };
 
@@ -149,17 +161,16 @@ private:
  * @brief 键值打印,调试使用(BplusTree)
  * @ingroup BPlusTree
  */
-class KeyPrinter
-{
+class KeyPrinter {
 public:
-  void init(AttrType type, int length) { attr_printer_.init(type, length); }
+  void init(std::vector<AttrType>& types, std::vector<pair<int,int>>& off_sizes, int length) { attr_printer_.init(types, off_sizes, length); }
 
   const AttrPrinter &attr_printer() const { return attr_printer_; }
 
   string operator()(const char *v) const
   {
     stringstream ss;
-    ss << "{key:" << attr_printer_(v) << ",";
+    ss << "{key:{" << attr_printer_(v) << "},";
 
     const RID *rid = (const RID *)(v + attr_printer_.attr_length());
     ss << "rid:{" << rid->to_string() << "}}";
@@ -176,27 +187,33 @@ private:
  * @details this is the first page of bplus tree.
  * only one field can be supported, can you extend it to multi-fields?
  */
-struct IndexFileHeader
-{
-  IndexFileHeader()
-  {
-    memset(this, 0, sizeof(IndexFileHeader));
+struct IndexFileHeader {
+  IndexFileHeader() :root_page(BP_INVALID_PAGE_NUM),internal_max_size(0), leaf_max_size(0), attr_length(0),key_length(0)  {
     root_page = BP_INVALID_PAGE_NUM;
+  }
+  IndexFileHeader& operator=(const IndexFileHeader& other) {
+    root_page = other.root_page;
+    internal_max_size = other.internal_max_size;
+    leaf_max_size = other.leaf_max_size;
+    attr_length = other.attr_length;
+    key_length = other.key_length;
+    attr_nums = other.attr_nums;
+    return *this;
   }
   PageNum  root_page;          ///< 根节点在磁盘中的页号
   int32_t  internal_max_size;  ///< 内部节点最大的键值对数
   int32_t  leaf_max_size;      ///< 叶子节点最大的键值对数
   int32_t  attr_length;        ///< 键值的长度
   int32_t  key_length;         ///< attr length + sizeof(RID)
-  AttrType attr_type;          ///< 键值的类型
-
-  const string to_string() const
-  {
+  int32_t attr_nums;
+  std::vector<AttrType> attr_types;          ///< 键值的类型
+  std::vector<pair<int32_t,int32_t>> off_and_sizes;
+  const string to_string() const {
     stringstream ss;
 
     ss << "attr_length:" << attr_length << ","
        << "key_length:" << key_length << ","
-       << "attr_type:" << attr_type_to_string(attr_type) << ","
+       << "attr_type:" << attr_types_to_string(attr_types) << ","
        << "root_page:" << root_page << ","
        << "internal_max_size:" << internal_max_size << ","
        << "leaf_max_size:" << leaf_max_size << ";";
@@ -213,8 +230,7 @@ struct IndexFileHeader
  * | page type | item number | parent page id |
  * @endcode
  */
-struct IndexNode
-{
+struct IndexNode {
   static constexpr int HEADER_SIZE = 12;
 
   bool    is_leaf;  /// 当前是叶子节点还是内部节点
@@ -235,8 +251,7 @@ struct IndexNode
  * the value is rid.
  * can you implenment a cluster index ?
  */
-struct LeafIndexNode : public IndexNode
-{
+struct LeafIndexNode : public IndexNode {
   static constexpr int HEADER_SIZE = IndexNode::HEADER_SIZE + 4;
 
   PageNum next_brother;
@@ -257,8 +272,7 @@ struct LeafIndexNode : public IndexNode
  * the first key is ignored(key0).
  * so it will waste space, can you fix this?
  */
-struct InternalIndexNode : public IndexNode
-{
+struct InternalIndexNode : public IndexNode {
   static constexpr int HEADER_SIZE = IndexNode::HEADER_SIZE;
 
   /**
@@ -273,8 +287,7 @@ struct InternalIndexNode : public IndexNode
  * IndexNodeHandler 负责对IndexNode做各种操作。
  * 作为一个类来说，虚函数会影响“结构体”真实的内存布局，所以将数据存储与操作分开
  */
-class IndexNodeHandler
-{
+class IndexNodeHandler {
 public:
   IndexNodeHandler(BplusTreeMiniTransaction &mtr, const IndexFileHeader &header, Frame *frame);
   virtual ~IndexNodeHandler() = default;
@@ -342,8 +355,7 @@ protected:
  * @brief 叶子节点的操作
  * @ingroup BPlusTree
  */
-class LeafIndexNodeHandler final : public IndexNodeHandler
-{
+class LeafIndexNodeHandler final : public IndexNodeHandler {
 public:
   LeafIndexNodeHandler(BplusTreeMiniTransaction &mtr, const IndexFileHeader &header, Frame *frame);
   virtual ~LeafIndexNodeHandler() = default;
@@ -391,8 +403,7 @@ private:
  * @brief 内部节点的操作
  * @ingroup BPlusTree
  */
-class InternalIndexNodeHandler final : public IndexNodeHandler
-{
+class InternalIndexNodeHandler final : public IndexNodeHandler {
 public:
   InternalIndexNodeHandler(BplusTreeMiniTransaction &mtr, const IndexFileHeader &header, Frame *frame);
   virtual ~InternalIndexNodeHandler() = default;
@@ -456,22 +467,21 @@ private:
  * @brief B+树的实现
  * @ingroup BPlusTree
  */
-class BplusTreeHandler
-{
+class BplusTreeHandler {
 public:
   /**
    * @brief 创建一个B+树
    * @param log_handler 记录日志
    * @param bpm 缓冲池管理器
    * @param file_name 文件名
-   * @param attr_type 属性类型
+   * @param attr_types 属性类型(mutilple keys are supported.)
    * @param attr_length 属性长度
    * @param internal_max_size 内部节点最大大小
    * @param leaf_max_size 叶子节点最大大小
    */
-  RC create(LogHandler &log_handler, BufferPoolManager &bpm, const char *file_name, AttrType attr_type, int attr_length,
+  RC create(LogHandler &log_handler, BufferPoolManager &bpm, const char *file_name, std::vector<AttrType>& attr_types, std::vector<pair<int32_t,int32_t>>& offsets, int attr_length,
       int internal_max_size = -1, int leaf_max_size = -1);
-  RC create(LogHandler &log_handler, DiskBufferPool &buffer_pool, AttrType attr_type, int attr_length,
+  RC create(LogHandler &log_handler, DiskBufferPool &buffer_pool, std::vector<AttrType>& attr_type, std::vector<pair<int32_t,int32_t>>& offsets, int attr_length,
       int internal_max_size = -1, int leaf_max_size = -1);
 
   /**
@@ -669,8 +679,7 @@ private:
  * @brief B+树的扫描器
  * @ingroup BPlusTree
  */
-class BplusTreeScanner
-{
+class BplusTreeScanner {
 public:
   BplusTreeScanner(BplusTreeHandler &tree_handler);
   ~BplusTreeScanner();

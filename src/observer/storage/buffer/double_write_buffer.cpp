@@ -47,12 +47,9 @@ const int32_t DoubleWritePage::SIZE = sizeof(DoubleWritePage);
 const int32_t DoubleWriteBufferHeader::SIZE = sizeof(DoubleWriteBufferHeader);
 
 DiskDoubleWriteBuffer::DiskDoubleWriteBuffer(BufferPoolManager &bp_manager, int max_pages /*=16*/) 
-  : max_pages_(max_pages), bp_manager_(bp_manager)
-{
-}
+  : max_pages_(max_pages), bp_manager_(bp_manager) {}
 
-DiskDoubleWriteBuffer::~DiskDoubleWriteBuffer()
-{
+DiskDoubleWriteBuffer::~DiskDoubleWriteBuffer() {
   flush_page();
 
   for (auto &node : dblwr_pages_) {
@@ -61,8 +58,8 @@ DiskDoubleWriteBuffer::~DiskDoubleWriteBuffer()
   close(file_desc_);
 }
 
-RC DiskDoubleWriteBuffer::open_file(const char *filename)
-{
+// ✅
+RC DiskDoubleWriteBuffer::open_file(const char *filename) {
   if (file_desc_ >= 0) {
     LOG_ERROR("Double write buffer has already opened. file desc=%d", file_desc_);
     return RC::BUFFERPOOL_OPEN;
@@ -78,12 +75,12 @@ RC DiskDoubleWriteBuffer::open_file(const char *filename)
   return load_pages();
 }
 
-RC DiskDoubleWriteBuffer::flush_page()
-{
+RC DiskDoubleWriteBuffer::flush_page() {
   sync();
 
   for (const auto &pair : dblwr_pages_) {
     RC rc = write_page(pair.second);
+    bitmap_.clear_bit(pair.second->page_index);
     if (rc != RC::SUCCESS) {
       return rc;
     }
@@ -92,12 +89,20 @@ RC DiskDoubleWriteBuffer::flush_page()
 
   dblwr_pages_.clear();
   header_.page_cnt = 0;
+  assert(bitmap_.next_setted_bit(0) == -1);
+  if (lseek(file_desc_, 0, SEEK_SET) == -1) {
+    LOG_ERROR("Failed to add page header due to failed to seek %s.", strerror(errno));
+    return RC::IOERR_SEEK;
+  }
 
+  if (writen(file_desc_, &header_, sizeof(header_)) != 0) {
+    LOG_ERROR("Failed to add page header due to %s.", strerror(errno));
+    return RC::IOERR_WRITE;
+  }
   return RC::SUCCESS;
 }
-
-RC DiskDoubleWriteBuffer::add_page(DiskBufferPool *bp, PageNum page_num, Page &page)
-{
+// ✅
+RC DiskDoubleWriteBuffer::add_page(DiskBufferPool *bp, PageNum page_num, Page &page) {
   scoped_lock lock_guard(lock_);
   DoubleWritePageKey key{bp->id(), page_num};
   auto iter = dblwr_pages_.find(key);
@@ -108,8 +113,12 @@ RC DiskDoubleWriteBuffer::add_page(DiskBufferPool *bp, PageNum page_num, Page &p
     return write_page_internal(iter->second);
   }
 
-  int64_t          page_cnt   = dblwr_pages_.size();
-  DoubleWritePage *dblwr_page = new DoubleWritePage(bp->id(), page_num, page_cnt, page);
+  // int64_t          page_cnt   = dblwr_pages_.size();
+  int page_index = bitmap_.next_unsetted_bit(0);
+  // TODO(dwk) if page_index == -1, all pages should be writen to disk.
+  assert(page_index != -1);
+  bitmap_.set_bit(page_index);
+  DoubleWritePage *dblwr_page = new DoubleWritePage(bp->id(), page_num, static_cast<int64_t>(page_index), page);
   dblwr_pages_.insert(std::pair<DoubleWritePageKey, DoubleWritePage *>(key, dblwr_page));
   LOG_TRACE("insert page into double write buffer. buffer_pool_id:%d,page_num:%d,lsn=%d, dwb size:%d",
             bp->id(), page_num, page.lsn, static_cast<int>(dblwr_pages_.size()));
@@ -120,9 +129,8 @@ RC DiskDoubleWriteBuffer::add_page(DiskBufferPool *bp, PageNum page_num, Page &p
         strrc(rc), bp->id(), page_num, page.lsn);
     return rc;
   }
-
-  if (page_cnt + 1 > header_.page_cnt) {
-    header_.page_cnt = page_cnt + 1;
+  if (dblwr_pages_.size()  > header_.page_cnt) {
+    header_.page_cnt = dblwr_pages_.size();
     if (lseek(file_desc_, 0, SEEK_SET) == -1) {
       LOG_ERROR("Failed to add page header due to failed to seek %s.", strerror(errno));
       return RC::IOERR_SEEK;
@@ -137,16 +145,14 @@ RC DiskDoubleWriteBuffer::add_page(DiskBufferPool *bp, PageNum page_num, Page &p
   if (static_cast<int>(dblwr_pages_.size()) >= max_pages_) {
     RC rc = flush_page();
     if (rc != RC::SUCCESS) {
-      LOG_ERROR("Failed to flush pages in double write buffer");
       return rc;
     }
   }
 
   return RC::SUCCESS;
 }
-
-RC DiskDoubleWriteBuffer::write_page_internal(DoubleWritePage *page)
-{
+// ✅
+RC DiskDoubleWriteBuffer::write_page_internal(DoubleWritePage *page) {
   int32_t page_index = page->page_index;
   int64_t offset = page_index * DoubleWritePage::SIZE + DoubleWriteBufferHeader::SIZE;
   if (lseek(file_desc_, offset, SEEK_SET) == -1) {
@@ -161,9 +167,8 @@ RC DiskDoubleWriteBuffer::write_page_internal(DoubleWritePage *page)
 
   return RC::SUCCESS;
 }
-
-RC DiskDoubleWriteBuffer::write_page(DoubleWritePage *dblwr_page)
-{
+// ✅
+RC DiskDoubleWriteBuffer::write_page(DoubleWritePage *dblwr_page) {
   DiskBufferPool *disk_buffer = nullptr;
   RC rc = bp_manager_.get_buffer_pool(dblwr_page->key.buffer_pool_id, disk_buffer);
   ASSERT(OB_SUCC(rc) && disk_buffer != nullptr, "failed to get disk buffer pool of %d", dblwr_page->key.buffer_pool_id);
@@ -174,8 +179,7 @@ RC DiskDoubleWriteBuffer::write_page(DoubleWritePage *dblwr_page)
   return disk_buffer->write_page(dblwr_page->key.page_num, dblwr_page->page);
 }
 
-RC DiskDoubleWriteBuffer::read_page(DiskBufferPool *bp, PageNum page_num, Page &page)
-{
+RC DiskDoubleWriteBuffer::read_page(DiskBufferPool *bp, PageNum page_num, Page &page) {
   scoped_lock lock_guard(lock_);
   DoubleWritePageKey key{bp->id(), page_num};
   auto iter = dblwr_pages_.find(key);
@@ -188,8 +192,7 @@ RC DiskDoubleWriteBuffer::read_page(DiskBufferPool *bp, PageNum page_num, Page &
   return RC::BUFFERPOOL_INVALID_PAGE_NUM;
 }
 
-RC DiskDoubleWriteBuffer::clear_pages(DiskBufferPool *buffer_pool)
-{
+RC DiskDoubleWriteBuffer::clear_pages(DiskBufferPool *buffer_pool) {
   vector<DoubleWritePage *> spec_pages;
   
   auto remove_pred = [&spec_pages, buffer_pool](const pair<DoubleWritePageKey, DoubleWritePage *> &pair) {
@@ -216,20 +219,32 @@ RC DiskDoubleWriteBuffer::clear_pages(DiskBufferPool *buffer_pool)
   RC rc = RC::SUCCESS;
   for (DoubleWritePage *dbl_page : spec_pages) {
     rc = buffer_pool->write_page(dbl_page->key.page_num, dbl_page->page);
+    bitmap_.clear_bit(dbl_page->page_index);
     if (OB_FAIL(rc)) {
       LOG_WARN("Failed to write page %s:%d to disk buffer pool. rc=%s",
                buffer_pool->filename(), dbl_page->key.page_num, strrc(rc));
       break;
     }
   }
+  if (!spec_pages.empty()) {
+    header_.page_cnt -= spec_pages.size();
+    if (lseek(file_desc_, 0, SEEK_SET) == -1) {
+      LOG_ERROR("Failed to add page header due to failed to seek %s.", strerror(errno));
+      return RC::IOERR_SEEK;
+    }
 
+    if (writen(file_desc_, &header_, sizeof(header_)) != 0) {
+      LOG_ERROR("Failed to add page header due to %s.", strerror(errno));
+      return RC::IOERR_WRITE;
+    }
+  }
+  
   for_each(spec_pages.begin(), spec_pages.end(), [](DoubleWritePage *dbl_page) { delete dbl_page; });
 
   return RC::SUCCESS;
 }
-
-RC DiskDoubleWriteBuffer::load_pages()
-{
+// ✅
+RC DiskDoubleWriteBuffer::load_pages() {
   if (file_desc_ < 0) {
     LOG_ERROR("Failed to load pages, due to file desc is invalid.");
     return RC::BUFFERPOOL_OPEN;
@@ -244,15 +259,16 @@ RC DiskDoubleWriteBuffer::load_pages()
     LOG_ERROR("Failed to load page header, due to failed to lseek:%s.", strerror(errno));
     return RC::IOERR_SEEK;
   }
-
+  memset(header_.bit_map, 0, BP_PAGE_SIZE - sizeof(int32_t));
   int ret = readn(file_desc_, &header_, sizeof(header_));
   if (ret != 0 && ret != -1) {
     LOG_ERROR("Failed to load page header, file_desc:%d, due to failed to read data:%s, ret=%d",
                 file_desc_, strerror(errno), ret);
     return RC::IOERR_READ;
   }
-
-  for (int page_num = 0; page_num < header_.page_cnt; page_num++) {
+  bitmap_.init(header_.bit_map, (BP_PAGE_SIZE - sizeof(int32_t)) << 3);
+  int page_num;
+  for (page_num = bitmap_.next_setted_bit(0); page_num != -1; page_num = bitmap_.next_setted_bit(page_num + 1)) {
     int64_t offset = ((int64_t)page_num) * DoubleWritePage::SIZE + DoubleWriteBufferHeader::SIZE;
 
     if (lseek(file_desc_, offset, SEEK_SET) == -1) {
@@ -284,14 +300,12 @@ RC DiskDoubleWriteBuffer::load_pages()
   return RC::SUCCESS;
 }
 
-RC DiskDoubleWriteBuffer::recover()
-{
+RC DiskDoubleWriteBuffer::recover() {
   return flush_page();
 }
 
 ////////////////////////////////////////////////////////////////
-RC VacuousDoubleWriteBuffer::add_page(DiskBufferPool *bp, PageNum page_num, Page &page)
-{
+RC VacuousDoubleWriteBuffer::add_page(DiskBufferPool *bp, PageNum page_num, Page &page) {
   return bp->write_page(page_num, page);
 }
 

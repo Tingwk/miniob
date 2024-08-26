@@ -32,8 +32,7 @@ See the Mulan PSL v2 for more details. */
 
 using namespace common;
 
-Db::~Db()
-{
+Db::~Db() {
   for (auto &iter : opened_tables_) {
     delete iter.second;
   }
@@ -47,8 +46,7 @@ Db::~Db()
   LOG_INFO("Db has been closed: %s", name_.c_str());
 }
 
-RC Db::init(const char *name, const char *dbpath, const char *trx_kit_name, const char *log_handler_name)
-{
+RC Db::init(const char *name, const char *dbpath, const char *trx_kit_name, const char *log_handler_name) {
   RC rc = RC::SUCCESS;
 
   if (common::is_blank(name)) {
@@ -136,8 +134,7 @@ RC Db::init(const char *name, const char *dbpath, const char *trx_kit_name, cons
   return rc;
 }
 
-RC Db::create_table(const char *table_name, span<const AttrInfoSqlNode> attributes, const StorageFormat storage_format)
-{
+RC Db::create_table(const char *table_name, span<const AttrInfoSqlNode> attributes, const StorageFormat storage_format) {
   RC rc = RC::SUCCESS;
   // check table_name
   if (opened_tables_.count(table_name) != 0) {
@@ -184,8 +181,7 @@ RC Db::drop_table(const char* tb_name) {
   return RC::SUCCESS;
 }
 
-Table *Db::find_table(const char *table_name) const
-{
+Table *Db::find_table(const char *table_name) const {
   unordered_map<string, Table *>::const_iterator iter = opened_tables_.find(table_name);
   if (iter != opened_tables_.end()) {
     return iter->second;
@@ -193,8 +189,7 @@ Table *Db::find_table(const char *table_name) const
   return nullptr;
 }
 
-Table *Db::find_table(int32_t table_id) const
-{
+Table *Db::find_table(int32_t table_id) const {
   for (auto pair : opened_tables_) {
     if (pair.second->table_id() == table_id) {
       return pair.second;
@@ -203,8 +198,7 @@ Table *Db::find_table(int32_t table_id) const
   return nullptr;
 }
 
-RC Db::open_all_tables()
-{
+RC Db::open_all_tables() {
   vector<string> table_meta_files;
 
   int ret = list_file(path_.c_str(), TABLE_META_FILE_PATTERN, table_meta_files);
@@ -244,15 +238,13 @@ RC Db::open_all_tables()
 
 const char *Db::name() const { return name_.c_str(); }
 
-void Db::all_tables(vector<string> &table_names) const
-{
+void Db::all_tables(vector<string> &table_names) const {
   for (const auto &table_item : opened_tables_) {
     table_names.emplace_back(table_item.first);
   }
 }
 
-RC Db::sync()
-{
+RC Db::sync() {
   RC rc = RC::SUCCESS;
   // 调用所有表的sync函数刷新数据到磁盘
   for (const auto &table_pair : opened_tables_) {
@@ -290,8 +282,7 @@ RC Db::sync()
   return rc;
 }
 
-RC Db::recover()
-{
+RC Db::recover() {
   LOG_TRACE("db recover begin. check_point_lsn=%d", check_point_lsn_);
 
   LogReplayer *trx_log_replayer = trx_kit_->create_log_replayer(*this, *log_handler_);
@@ -323,8 +314,7 @@ RC Db::recover()
   return rc;
 }
 
-RC Db::init_meta()
-{
+RC Db::init_meta() {
   filesystem::path db_meta_file_path = db_meta_file(path_.c_str(), name_.c_str());
   if (!filesystem::exists(db_meta_file_path)) {
     check_point_lsn_ = 0;
@@ -363,8 +353,7 @@ RC Db::init_meta()
   return rc;
 }
 
-RC Db::flush_meta()
-{
+RC Db::flush_meta() {
   // 将数据库元数据刷新到磁盘
   // 先创建一个临时文件，将元数据写入临时文件
   // 然后再将临时文件修改为正式文件
@@ -408,8 +397,7 @@ RC Db::flush_meta()
   return rc;
 }
 
-RC Db::init_dblwr_buffer()
-{
+RC Db::init_dblwr_buffer() {
   auto dblwr_buffer = static_cast<DiskDoubleWriteBuffer *>(buffer_pool_manager_->get_dblwr_buffer());
   RC   rc           = dblwr_buffer->recover();
   if (OB_FAIL(rc)) {

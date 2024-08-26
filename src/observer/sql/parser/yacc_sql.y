@@ -131,6 +131,7 @@ UnboundAggregateExpr *create_aggregate_expression(const char *aggregate_name,
   std::vector<Value> *                       value_list;
   std::vector<ConditionSqlNode> *            condition_list;
   std::vector<RelAttrSqlNode> *              rel_attr_list;
+  std::vector<std::string>*                  id_list_type;
 //  std::vector<std::string> *                 relation_list;
   RelListSqlNode*                            relation_list;
   char *                                     string;
@@ -148,6 +149,7 @@ UnboundAggregateExpr *create_aggregate_expression(const char *aggregate_name,
 %type <number>              type
 %type <condition>           condition
 %type <value>               value
+%type <id_list_type>        id_list
 %type <number>              number
 // %type <string>              relation
 %type <comp>                comp_op
@@ -156,6 +158,7 @@ UnboundAggregateExpr *create_aggregate_expression(const char *aggregate_name,
 %type <attr_info>           attr_def
 %type <value_list>          value_list
 %type <condition_list>      where
+
 %type <condition_list>      condition_list
 %type <string>              storage_format
 %type <relation_list>       rel_list
@@ -278,18 +281,37 @@ desc_table_stmt:
     ;
 
 create_index_stmt:    /*create index 语句的语法解析树*/
-    CREATE INDEX ID ON ID LBRACE ID RBRACE
+    CREATE INDEX ID ON ID LBRACE ID id_list RBRACE
     {
       $$ = new ParsedSqlNode(SCF_CREATE_INDEX);
       CreateIndexSqlNode &create_index = $$->create_index;
       create_index.index_name = $3;
       create_index.relation_name = $5;
-      create_index.attribute_name = $7;
+      if ($8 != nullptr) {
+        create_index.attribute_names.swap(*$8);
+        delete $8;
+      }
+      create_index.attribute_names.emplace(create_index.attribute_names.begin(), $7);
       free($3);
       free($5);
       free($7);
     }
     ;
+id_list:
+  /* empty */
+  {
+    $$ = nullptr;
+  }
+  | COMMA ID id_list {
+    if ($3 != nullptr) {
+      $$ = $3;
+    } else {
+      $$ = new std::vector<std::string>();
+    }
+    $$->emplace($$->begin(), $2);
+    free($2);
+  }
+  ;
 
 drop_index_stmt:      /*drop index 语句的语法解析树*/
     DROP INDEX ID ON ID

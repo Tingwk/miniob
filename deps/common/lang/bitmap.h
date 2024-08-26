@@ -16,8 +16,7 @@ See the Mulan PSL v2 for more details. */
 
 namespace common {
 
-class Bitmap
-{
+class Bitmap {
 public:
   Bitmap();
   Bitmap(char *bitmap, int size);

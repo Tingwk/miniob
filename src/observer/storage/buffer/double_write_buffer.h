@@ -19,7 +19,7 @@ See the Mulan PSL v2 for more details. */
 #include "common/types.h"
 #include "common/rc.h"
 #include "storage/buffer/page.h"
-
+#include "common/lang/bitmap.h"
 class DiskBufferPool;
 struct DoubleWritePage;
 class BufferPoolManager;
@@ -46,6 +46,7 @@ public:
 struct DoubleWriteBufferHeader
 {
   int32_t page_cnt = 0;
+  char bit_map[BP_PAGE_SIZE- sizeof(int32_t)];
 
   static const int32_t SIZE;
 };
@@ -82,8 +83,7 @@ struct DoubleWritePageKeyHash
  *
  * @note 每次都要保证，不管在内存中还是在文件中，这里的数据都是最新的，都比Buffer pool中的数据要新
  */
-class DiskDoubleWriteBuffer : public DoubleWriteBuffer
-{
+class DiskDoubleWriteBuffer : public DoubleWriteBuffer {
 public:
   /**
    * @brief 构造函数
@@ -146,6 +146,7 @@ private:
   common::Mutex           lock_;
   BufferPoolManager      &bp_manager_;
   DoubleWriteBufferHeader header_;
+  common::Bitmap          bitmap_;
 
   unordered_map<DoubleWritePageKey, DoubleWritePage *, DoubleWritePageKeyHash> dblwr_pages_;
 };
