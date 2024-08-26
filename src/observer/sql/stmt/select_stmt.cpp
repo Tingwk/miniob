@@ -16,6 +16,7 @@ See the Mulan PSL v2 for more details. */
 #include "common/lang/string.h"
 #include "common/log/log.h"
 #include "sql/stmt/filter_stmt.h"
+#include "sql/stmt/order_by_stmt.h"
 #include "storage/db/db.h"
 #include "storage/table/table.h"
 #include "sql/parser/expression_binder.h"
@@ -29,6 +30,9 @@ SelectStmt::~SelectStmt()
   if (nullptr != filter_stmt_) {
     delete filter_stmt_;
     filter_stmt_ = nullptr;
+  }
+  if (nullptr != order_stmt_) {
+    delete order_stmt_;
   }
 }
 
@@ -169,6 +173,13 @@ RC SelectStmt::create(Db *db, SelectSqlNode &select_sql, Stmt *&stmt)
     return rc;
   }
 
+  // order by
+  OrderByStmt *order_stmt;
+  if (rc = OrderByStmt::create(name_to_table, select_sql.order_by, order_stmt); rc != RC::SUCCESS) {
+    LOG_WARN("cannot construct filter stmt");
+    return rc;
+  }
+
   // everything alright
   SelectStmt *select_stmt = new SelectStmt();
 
@@ -177,6 +188,7 @@ RC SelectStmt::create(Db *db, SelectSqlNode &select_sql, Stmt *&stmt)
   select_stmt->filter_stmt_ = filter_stmt;
   select_stmt->on_conditions_.swap(filters);
   select_stmt->group_by_.swap(group_by_expressions);
+  select_stmt->order_stmt_ = order_stmt;
   stmt                      = select_stmt;
   return RC::SUCCESS;
 }

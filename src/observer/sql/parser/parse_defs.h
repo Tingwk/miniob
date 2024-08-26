@@ -98,6 +98,12 @@ struct RelListSqlNode {
   std::vector<JoinSqlNode> joins;
 };
 
+struct OrderBySqlNode {
+  std::string table_name;
+  std::string attribute_name;
+  bool asc; // ascending order or not
+};
+
 /**
  * @brief 描述一个select语句
  * @ingroup SQLParser
@@ -115,6 +121,7 @@ struct SelectSqlNode
   std::vector<std::string>                 relations;    ///< 查询的表
   std::vector<ConditionSqlNode>            conditions;   ///< 查询条件，使用AND串联起来多个条件
   std::vector<std::unique_ptr<Expression>> group_by;     ///< group by clause
+  std::vector<OrderBySqlNode>              order_by;
   std::vector<JoinSqlNode>        joins;
 };
 
@@ -204,7 +211,7 @@ struct CreateIndexSqlNode
   std::string index_name;      ///< Index name
   std::string relation_name;   ///< Relation name
   std::vector<std::string> attribute_names;  ///< Attribute name
-  
+
 };
 
 /**

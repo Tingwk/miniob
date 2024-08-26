@@ -159,8 +159,7 @@ public:
  * @ingroup Tuple
  * @details 直接就是获取表中的一条记录
  */
-class RowTuple : public Tuple
-{
+class RowTuple : public Tuple {
 public:
   RowTuple() = default;
   virtual ~RowTuple()
@@ -186,8 +185,7 @@ public:
 
   int cell_num() const override { return speces_.size(); }
 
-  RC cell_at(int index, Value &cell) const override
-  {
+  RC cell_at(int index, Value &cell) const override {
     if (index < 0 || index >= static_cast<int>(speces_.size())) {
       LOG_WARN("invalid argument. index=%d", index);
       return RC::INVALID_ARGUMENT;
@@ -252,8 +250,7 @@ private:
  * @details 一般在select语句中使用。
  * 投影也可以是很复杂的操作，比如某些字段需要做类型转换、重命名、表达式运算、函数计算等。
  */
-class ProjectTuple : public Tuple
-{
+class ProjectTuple : public Tuple {
 public:
   ProjectTuple()          = default;
   virtual ~ProjectTuple() = default;
@@ -310,8 +307,7 @@ private:
  * @ingroup Tuple
  * TODO 使用单独文件
  */
-class ValueListTuple : public Tuple
-{
+class ValueListTuple : public Tuple {
 public:
   ValueListTuple()          = default;
   virtual ~ValueListTuple() = default;
@@ -388,8 +384,7 @@ private:
  * @details 在join算子中使用
  * TODO replace with composite tuple
  */
-class JoinedTuple : public Tuple
-{
+class JoinedTuple : public Tuple {
 public:
   JoinedTuple()          = default;
   virtual ~JoinedTuple() = default;
@@ -400,8 +395,7 @@ public:
   auto right_tuple() -> Tuple* { return right_; }
   int cell_num() const override { return left_->cell_num() + right_->cell_num(); }
 
-  RC cell_at(int index, Value &value) const override
-  {
+  RC cell_at(int index, Value &value) const override {
     const int left_cell_num = left_->cell_num();
     if (index >= 0 && index < left_cell_num) {
       return left_->cell_at(index, value);
@@ -414,8 +408,7 @@ public:
     return RC::NOTFOUND;
   }
 
-  RC spec_at(int index, TupleCellSpec &spec) const override
-  {
+  RC spec_at(int index, TupleCellSpec &spec) const override {
     const int left_cell_num = left_->cell_num();
     if (index >= 0 && index < left_cell_num) {
       return left_->spec_at(index, spec);
@@ -428,8 +421,7 @@ public:
     return RC::NOTFOUND;
   }
 
-  RC find_cell(const TupleCellSpec &spec, Value &value) const override
-  {
+  RC find_cell(const TupleCellSpec &spec, Value &value) const override {
     RC rc = left_->find_cell(spec, value);
     if (rc == RC::SUCCESS || rc != RC::NOTFOUND) {
       return rc;

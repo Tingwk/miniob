@@ -34,8 +34,7 @@ public:
   const char *field_name() const { return field_name_.c_str(); }
   const char *alias() const { return alias_.c_str(); }
 
-  bool equals(const TupleCellSpec &other) const
-  {
+  bool equals(const TupleCellSpec &other) const {
     return table_name_ == other.table_name_ && field_name_ == other.field_name_ && alias_ == other.alias_;
   }
 

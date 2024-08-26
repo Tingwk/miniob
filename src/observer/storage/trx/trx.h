@@ -137,8 +137,7 @@ public:
  * @brief 事务接口
  * @ingroup Transaction
  */
-class Trx
-{
+class Trx {
 public:
   Trx()          = default;
   virtual ~Trx() = default;

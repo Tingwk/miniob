@@ -109,6 +109,8 @@ UnboundAggregateExpr *create_aggregate_expression(const char *aggregate_name,
         STORAGE
         FORMAT
         EQ
+        ORDER
+        ASC
         LT
         GT
         LE
@@ -128,6 +130,7 @@ UnboundAggregateExpr *create_aggregate_expression(const char *aggregate_name,
   AttrInfoSqlNode *                          attr_info;
   Expression *                               expression;
   std::vector<std::unique_ptr<Expression>> * expression_list;
+  std::vector<OrderBySqlNode>*               order_by_list;
   std::vector<Value> *                       value_list;
   std::vector<ConditionSqlNode> *            condition_list;
   std::vector<RelAttrSqlNode> *              rel_attr_list;
@@ -158,7 +161,8 @@ UnboundAggregateExpr *create_aggregate_expression(const char *aggregate_name,
 %type <attr_info>           attr_def
 %type <value_list>          value_list
 %type <condition_list>      where
-
+%type <order_by_list>       order_by
+%type <order_by_list>       order_list
 %type <condition_list>      condition_list
 %type <string>              storage_format
 %type <relation_list>       rel_list
@@ -476,7 +480,7 @@ update_stmt:      /*  update 语句的语法解析树*/
     }
     ;
 select_stmt:        /*  select 语句的语法解析树*/
-    SELECT expression_list FROM ID rel_list where group_by
+    SELECT expression_list FROM ID rel_list where group_by order_by
     {
       $$ = new ParsedSqlNode(SCF_SELECT);
       if ($2 != nullptr) {
@@ -500,6 +504,10 @@ select_stmt:        /*  select 语句的语法解析树*/
       if ($7 != nullptr) {
         $$->selection.group_by.swap(*$7);
         delete $7;
+      }
+      if ($8 != nullptr) {
+        $$->selection.order_by.swap(*$8);
+        delete $8;
       }
     }
     ;
@@ -785,6 +793,78 @@ group_by:
       /*delete $3;*/
     }
     ;
+order_by:
+    /* empty */
+    {
+      $$ = nullptr;
+    }
+    | ORDER BY order_list {
+      $$ = $3;
+    }
+    ;
+order_list:
+  rel_attr {
+    std::cout << "[1]\n";
+    $$ = new vector<OrderBySqlNode>();
+    OrderBySqlNode node; 
+    node.table_name = $1->relation_name;
+    node.attribute_name = $1->attribute_name;
+    node.asc = true;
+    delete $1;
+    $$->emplace_back(std::move(node));
+  }
+  | rel_attr COMMA order_list {
+    std::cout << "[2]\n";
+    $$ = $3;
+    OrderBySqlNode node; 
+    node.table_name = $1->relation_name;
+    node.attribute_name = $1->attribute_name;
+    node.asc = true;
+    delete $1;
+    $$->emplace($$->begin(), std::move(node));
+  }
+  | rel_attr ASC {
+    std::cout << "[3]\n";
+    $$ = new vector<OrderBySqlNode>();
+    OrderBySqlNode node; 
+    node.table_name = $1->relation_name;
+    node.attribute_name = $1->attribute_name;
+    node.asc = true;
+    delete $1;
+    $$->emplace_back(std::move(node));
+  } 
+  | rel_attr ASC COMMA order_list {
+    std::cout << "[4]\n";
+    $$ = $4;
+    OrderBySqlNode node; 
+    node.table_name = $1->relation_name;
+    node.attribute_name = $1->attribute_name;
+    node.asc = true;
+    delete $1;
+    $$->emplace($$->begin(), std::move(node));
+  } 
+  | rel_attr DESC {
+    std::cout << "[5]\n";
+    $$ = new vector<OrderBySqlNode>();
+    OrderBySqlNode node; 
+    node.table_name = $1->relation_name;
+    node.attribute_name = $1->attribute_name;
+    node.asc = false;
+    delete $1;
+    $$->emplace_back(std::move(node));
+    std::cout << (*$$)[0].attribute_name << '\n';
+  } 
+  | rel_attr DESC COMMA order_list {
+    std::cout << "[6]\n";
+    $$ = $4;
+    OrderBySqlNode node; 
+    node.table_name = $1->relation_name;
+    node.attribute_name = $1->attribute_name;
+    node.asc = false;
+    delete $1;
+    $$->emplace($$->begin(), std::move(node));
+  } 
+
 load_data_stmt:
     LOAD DATA INFILE SSS INTO TABLE ID 
     {

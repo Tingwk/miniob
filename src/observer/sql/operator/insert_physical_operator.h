@@ -24,8 +24,7 @@ class InsertStmt;
  * @brief 插入物理算子
  * @ingroup PhysicalOperator
  */
-class InsertPhysicalOperator : public PhysicalOperator
-{
+class InsertPhysicalOperator : public PhysicalOperator {
 public:
   InsertPhysicalOperator(Table *table, std::vector<Value> &&values);
 
