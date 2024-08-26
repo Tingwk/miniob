@@ -15,7 +15,7 @@ RC OrderByPhysicalOperator::open(Trx* trx) {
   
   if (rc = children_[0]->open(trx); rc != RC::SUCCESS) {
     LOG_WARN("order_by physical operator cannot open its child");
-    rc;
+    return rc;
   }
   // 设置好每一个要排序的field的offset
   auto child_oper = children_.front().get();

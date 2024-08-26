@@ -46,6 +46,8 @@ See the Mulan PSL v2 for more details. */
 #include "sql/operator/update_physical_operator.h"
 #include "sql/optimizer/physical_plan_generator.h"
 
+#include "sql/operator/order_by_logical_operator.h"
+#include "sql/operator/order_by_physical_operator.h"
 using namespace std;
 
 RC PhysicalPlanGenerator::create(LogicalOperator &logical_operator, unique_ptr<PhysicalOperator> &oper)
@@ -75,6 +77,10 @@ RC PhysicalPlanGenerator::create(LogicalOperator &logical_operator, unique_ptr<P
 
     case LogicalOperatorType::DELETE: {
       return create_plan(static_cast<DeleteLogicalOperator &>(logical_operator), oper);
+    } break;
+
+    case LogicalOperatorType::ORDER_BY: {
+      return create_plan(static_cast<OrderByLogicalOperator&>(logical_operator), oper);
     } break;
 
     case LogicalOperatorType::EXPLAIN: {
@@ -124,7 +130,11 @@ RC PhysicalPlanGenerator::create_vec(LogicalOperator &logical_operator, unique_p
   return rc;
 }
 
-
+RC PhysicalPlanGenerator::create_plan(OrderByLogicalOperator &logical_oper, std::unique_ptr<PhysicalOperator> &oper) {
+  auto order_phy_oper = new OrderByPhysicalOperator(std::move(logical_oper.units()));
+  oper.reset(order_phy_oper);
+  return RC::SUCCESS;
+}
 
 RC PhysicalPlanGenerator::create_plan(TableGetLogicalOperator &table_get_oper, unique_ptr<PhysicalOperator> &oper)
 {

@@ -186,10 +186,12 @@ RC LogicalPlanGenerator::create_plan(SelectStmt *select_stmt, unique_ptr<Logical
     last_oper = &group_by_oper;
   }
   unique_ptr<LogicalOperator> order_by_oper;
-  rc = create(select_stmt->order_stmt(), order_by_oper);
-  if (OB_FAIL(rc)) {
-    LOG_WARN("failed to create group by logical plan. rc=%s", strrc(rc));
-    return rc;
+  if (select_stmt->order_stmt() != nullptr) {
+    rc = create(select_stmt->order_stmt(), order_by_oper);
+    if (OB_FAIL(rc)) {
+      LOG_WARN("failed to create group by logical plan. rc=%s", strrc(rc));
+      return rc;
+    }
   }
   if (order_by_oper) {
     if (*last_oper) {

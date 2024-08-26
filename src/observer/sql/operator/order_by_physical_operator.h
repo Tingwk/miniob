@@ -5,7 +5,7 @@ class OrderByUnit;
 class Tuple;
 class OrderByPhysicalOperator : public PhysicalOperator {
  public:
-  OrderByPhysicalOperator(std::vector<std::unique_ptr<OrderByUnit>>units ): units_(std::move(units)), index_in_tuples_(-1) {}
+  OrderByPhysicalOperator(std::vector<std::unique_ptr<OrderByUnit>>&& units ): units_(std::move(units)), index_in_tuples_(-1) {}
   PhysicalOperatorType type() const override { return PhysicalOperatorType::ORDER_BY; }
 
   RC open(Trx *trx) override;
