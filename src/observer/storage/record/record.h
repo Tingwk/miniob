@@ -97,8 +97,7 @@ struct RIDHash
  * 为了方便，也提供了复制内存的方法。可以参考set_data_owner
  * @note 可以拆分成两种实现，一个是需要自己管理内存的，一个是不需要自己管理内存的。
  */
-class Record
-{
+class Record {
 public:
   Record() = default;
   ~Record()
@@ -109,8 +108,7 @@ public:
     }
   }
 
-  Record(const Record &other)
-  {
+  Record(const Record &other) {
     rid_   = other.rid_;
     data_  = other.data_;
     len_   = other.len_;

@@ -131,7 +131,21 @@ RC PhysicalPlanGenerator::create_vec(LogicalOperator &logical_operator, unique_p
 }
 
 RC PhysicalPlanGenerator::create_plan(OrderByLogicalOperator &logical_oper, std::unique_ptr<PhysicalOperator> &oper) {
+  unique_ptr<PhysicalOperator> child_phy_oper;
+  vector<std::unique_ptr<LogicalOperator>>& child_opers = logical_oper.children();
+  RC rc = RC::SUCCESS;
+  if (!child_opers.empty()) {
+    LogicalOperator *child_oper = child_opers.front().get();
+    rc = create(*child_oper, child_phy_oper);
+    if (OB_FAIL(rc)) {
+      LOG_WARN("failed to create project logical operator's child physical operator. rc=%s", strrc(rc));
+      return rc;
+    }
+  }
   auto order_phy_oper = new OrderByPhysicalOperator(std::move(logical_oper.units()));
+  if (child_phy_oper) {
+    order_phy_oper->add_child(std::move(child_phy_oper));
+  }
   oper.reset(order_phy_oper);
   return RC::SUCCESS;
 }

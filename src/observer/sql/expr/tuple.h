@@ -26,6 +26,14 @@ See the Mulan PSL v2 for more details. */
 #include "storage/record/record.h"
 
 class Table;
+enum class TupleType {
+  UNDEFINED_TUPLE,
+  ROW_TUPLE,
+  JOINED_TUPLE,
+  PROJECTION_TUPLE,
+  VALUE_LIST_TUPLE,
+  JOINED_TUPLE,
+};
 
 /**
  * @defgroup Tuple
@@ -48,8 +56,7 @@ class Table;
  * @brief 元组的结构，包含哪些字段(这里成为Cell)，每个字段的说明
  * @ingroup Tuple
  */
-class TupleSchema
-{
+class TupleSchema {
 public:
   void append_cell(const TupleCellSpec &cell) { cells_.push_back(cell); }
   void append_cell(const char *table, const char *field) { append_cell(TupleCellSpec(table, field)); }
@@ -66,8 +73,7 @@ private:
  * @brief 元组的抽象描述
  * @ingroup Tuple
  */
-class Tuple
-{
+class Tuple {
 public:
   Tuple()          = default;
   virtual ~Tuple() = default;
@@ -87,7 +93,7 @@ public:
   virtual RC cell_at(int index, Value &cell) const = 0;
 
   virtual RC spec_at(int index, TupleCellSpec &spec) const = 0;
-
+  virtual TupleType type() const = 0;
   /**
    * @brief 根据cell的描述，获取cell的值
    *
@@ -162,8 +168,12 @@ public:
 class RowTuple : public Tuple {
 public:
   RowTuple() = default;
-  virtual ~RowTuple()
-  {
+  RowTuple(const RowTuple& other) {
+    table_ = other.table_;
+    record_ = other.record_;
+    
+  }
+  virtual ~RowTuple() {
     for (FieldExpr *spec : speces_) {
       delete spec;
     }
@@ -204,8 +214,9 @@ public:
     return RC::SUCCESS;
   }
 
-  RC find_cell(const TupleCellSpec &spec, Value &cell) const override
-  {
+  TupleType type() const override { return TupleType::ROW_TUPLE; }
+
+  RC find_cell(const TupleCellSpec &spec, Value &cell) const override {
     const char *table_name = spec.table_name();
     const char *field_name = spec.field_name();
     if (0 != strcmp(table_name, table_->name())) {
@@ -255,10 +266,9 @@ public:
   ProjectTuple()          = default;
   virtual ~ProjectTuple() = default;
 
-  void set_expressions(std::vector<std::unique_ptr<Expression>> &&expressions)
-  {
-    expressions_ = std::move(expressions);
-  }
+  void set_expressions(std::vector<std::unique_ptr<Expression>> &&expressions) { expressions_ = std::move(expressions); }
+
+  TupleType type() const override { return TupleType::PROJECTION_TUPLE; }
 
   auto get_expressions() const -> const std::vector<std::unique_ptr<Expression>> & { return expressions_; }
 
@@ -266,8 +276,7 @@ public:
 
   int cell_num() const override { return static_cast<int>(expressions_.size()); }
 
-  RC cell_at(int index, Value &cell) const override
-  {
+  RC cell_at(int index, Value &cell) const override {
     if (index < 0 || index >= cell_num()) {
       return RC::INTERNAL;
     }
@@ -279,8 +288,7 @@ public:
     return expr->get_value(*tuple_, cell);
   }
 
-  RC spec_at(int index, TupleCellSpec &spec) const override
-  {
+  RC spec_at(int index, TupleCellSpec &spec) const override {
     spec = TupleCellSpec(expressions_[index]->name());
     return RC::SUCCESS;
   }
@@ -288,8 +296,7 @@ public:
   RC find_cell(const TupleCellSpec &spec, Value &cell) const override { return tuple_->find_cell(spec, cell); }
 
 #if 0
-  RC cell_spec_at(int index, const TupleCellSpec *&spec) const override
-  {
+  RC cell_spec_at(int index, const TupleCellSpec *&spec) const override {
     if (index < 0 || index >= static_cast<int>(speces_.size())) {
       return RC::NOTFOUND;
     }
@@ -317,8 +324,9 @@ public:
 
   virtual int cell_num() const override { return static_cast<int>(cells_.size()); }
 
-  virtual RC cell_at(int index, Value &cell) const override
-  {
+  TupleType type() const override { return TupleType::VALUE_LIST_TUPLE; }
+
+  virtual RC cell_at(int index, Value &cell) const override {
     if (index < 0 || index >= cell_num()) {
       return RC::NOTFOUND;
     }
@@ -327,8 +335,7 @@ public:
     return RC::SUCCESS;
   }
 
-  RC spec_at(int index, TupleCellSpec &spec) const override
-  {
+  RC spec_at(int index, TupleCellSpec &spec) const override {
     if (index < 0 || index >= cell_num()) {
       return RC::NOTFOUND;
     }
@@ -337,8 +344,7 @@ public:
     return RC::SUCCESS;
   }
 
-  virtual RC find_cell(const TupleCellSpec &spec, Value &cell) const override
-  {
+  virtual RC find_cell(const TupleCellSpec &spec, Value &cell) const override {
     ASSERT(cells_.size() == specs_.size(), "cells_.size()=%d, specs_.size()=%d", cells_.size(), specs_.size());
 
     const int size = static_cast<int>(specs_.size());
@@ -351,8 +357,7 @@ public:
     return RC::NOTFOUND;
   }
 
-  static RC make(const Tuple &tuple, ValueListTuple &value_list)
-  {
+  static RC make(const Tuple &tuple, ValueListTuple &value_list) {
     const int cell_num = tuple.cell_num();
     for (int i = 0; i < cell_num; i++) {
       Value cell;
@@ -394,7 +399,7 @@ public:
   auto left_tuple() -> Tuple* { return left_; }
   auto right_tuple() -> Tuple* { return right_; }
   int cell_num() const override { return left_->cell_num() + right_->cell_num(); }
-
+  TupleType type() const override { return TupleType::JOINED_TUPLE; }
   RC cell_at(int index, Value &value) const override {
     const int left_cell_num = left_->cell_num();
     if (index >= 0 && index < left_cell_num) {

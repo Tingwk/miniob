@@ -15,6 +15,6 @@ class OrderByPhysicalOperator : public PhysicalOperator {
  private:
   std::vector<int> offsets_;
   std::vector<std::unique_ptr<OrderByUnit>> units_;
-  std::vector<Tuple*> tuples_;
+  std::vector<Tuple> tuples_;
   size_t index_in_tuples_;
 };

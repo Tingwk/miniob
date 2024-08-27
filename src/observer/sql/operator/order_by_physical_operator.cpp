@@ -32,7 +32,10 @@ RC OrderByPhysicalOperator::open(Trx* trx) {
   // sizes of two vectors shall be identical.
   assert(units_.size() == offsets_.size());
   while ((rc = child_oper->next()) == RC::SUCCESS) {
-    tuples_.emplace_back(child_oper->current_tuple());
+    Tuple *t = child_oper->current_tuple();
+    if (t->type() == TupleType::ROW_TUPLE) {
+      tuples_.emplace_back(*child_oper->current_tuple());
+    }
   }
 
   // currently order by only supports sorting JoinedTuple and RowTuple
@@ -85,5 +88,5 @@ RC OrderByPhysicalOperator::close()  {
 }
 
 Tuple *OrderByPhysicalOperator::current_tuple() {
-  return tuples_[index_in_tuples_];
+  return &tuples_[index_in_tuples_];
 }
