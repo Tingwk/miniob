@@ -26,7 +26,7 @@ IndexScanPhysicalOperator::IndexScanPhysicalOperator(Table *table, Index *index,
   if (left_value) {
     left_value_ = *left_value;
     left_key_.reset(new char [table->table_meta().record_size()]);
-    //std::memcpy((void*)left_key_.get() + field.meta()->offset(), left_value_.data(), field.meta()->len());
+    memcpy((void*)(left_key_.get() + field.meta()->offset()), left_value_.data(), field.meta()->len());
     
   }
   if (right_value) {
