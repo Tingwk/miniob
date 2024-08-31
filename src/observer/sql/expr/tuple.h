@@ -17,6 +17,7 @@ See the Mulan PSL v2 for more details. */
 #include <memory>
 #include <string>
 #include <vector>
+// #include <cstring>
 
 #include "common/log/log.h"
 #include "sql/expr/expression.h"
@@ -32,7 +33,8 @@ enum class TupleType {
   JOINED_TUPLE,
   PROJECTION_TUPLE,
   VALUE_LIST_TUPLE,
-  JOINED_TUPLE,
+  EXPRESSION_TUPLE,
+  COMPOSITE_TUPLE,
 };
 
 /**
@@ -171,7 +173,7 @@ public:
   RowTuple(const RowTuple& other) {
     table_ = other.table_;
     record_ = other.record_;
-    
+    speces_ = std::move(other.speces_);
   }
   virtual ~RowTuple() {
     for (FieldExpr *spec : speces_) {
@@ -197,7 +199,7 @@ public:
 
   RC cell_at(int index, Value &cell) const override {
     if (index < 0 || index >= static_cast<int>(speces_.size())) {
-      LOG_WARN("invalid argument. index=%d", index);
+      //LOG_WARN("invalid argument. index=%d", index);
       return RC::INVALID_ARGUMENT;
     }
 
@@ -393,7 +395,10 @@ class JoinedTuple : public Tuple {
 public:
   JoinedTuple()          = default;
   virtual ~JoinedTuple() = default;
-
+  JoinedTuple(const JoinedTuple& other) {
+    left_ = other.left_;
+    right_ = other.right_;
+  }
   void set_left(Tuple *left) { left_ = left; }
   void set_right(Tuple *right) { right_ = right; }
   auto left_tuple() -> Tuple* { return left_; }

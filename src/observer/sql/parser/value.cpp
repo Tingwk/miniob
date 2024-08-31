@@ -31,7 +31,7 @@ const char * attr_types_to_string(const std::vector<AttrType>& types) {
   stringstream ss;
   for (size_t i = 0; i < types.size(); i++)
     ss << attr_type_to_string(types[i]);
-  return ss.str().c_str();
+  return std::move(ss.str().c_str());
 }
 AttrType attr_type_from_string(const char *s) {
   for (unsigned int i = 0; i < sizeof(ATTR_TYPE_NAME) / sizeof(ATTR_TYPE_NAME[0]); i++) {

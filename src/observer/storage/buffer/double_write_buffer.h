@@ -24,8 +24,8 @@ class DiskBufferPool;
 struct DoubleWritePage;
 class BufferPoolManager;
 
-class DoubleWriteBuffer
-{
+// abstract class
+class DoubleWriteBuffer {
 public:
   DoubleWriteBuffer()          = default;
   virtual ~DoubleWriteBuffer() = default;
@@ -43,8 +43,7 @@ public:
   virtual RC clear_pages(DiskBufferPool *bp) = 0;
 };
 
-struct DoubleWriteBufferHeader
-{
+struct DoubleWriteBufferHeader {
   int32_t page_cnt = 0;
   char bit_map[BP_PAGE_SIZE- sizeof(int32_t)];
 
@@ -52,21 +51,17 @@ struct DoubleWriteBufferHeader
 };
 
 // TODO change to FrameId
-struct DoubleWritePageKey
-{
+struct DoubleWritePageKey {
   int32_t buffer_pool_id;
   PageNum page_num;
 
-  bool operator==(const DoubleWritePageKey &other) const
-  {
+  bool operator==(const DoubleWritePageKey &other) const {
     return buffer_pool_id == other.buffer_pool_id && page_num == other.page_num;
   }
 };
 
-struct DoubleWritePageKeyHash
-{
-  size_t operator()(const DoubleWritePageKey &key) const
-  {
+struct DoubleWritePageKeyHash {
+  size_t operator()(const DoubleWritePageKey &key) const {
     return std::hash<int32_t>()(key.buffer_pool_id) ^ std::hash<PageNum>()(key.page_num);
   }
 };
@@ -151,8 +146,7 @@ private:
   unordered_map<DoubleWritePageKey, DoubleWritePage *, DoubleWritePageKeyHash> dblwr_pages_;
 };
 
-class VacuousDoubleWriteBuffer : public DoubleWriteBuffer
-{
+class VacuousDoubleWriteBuffer : public DoubleWriteBuffer {
 public:
   virtual ~VacuousDoubleWriteBuffer() = default;
 

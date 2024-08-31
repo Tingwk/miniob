@@ -34,18 +34,29 @@ RC OrderByPhysicalOperator::open(Trx* trx) {
   while ((rc = child_oper->next()) == RC::SUCCESS) {
     Tuple *t = child_oper->current_tuple();
     if (t->type() == TupleType::ROW_TUPLE) {
-      tuples_.emplace_back(*child_oper->current_tuple());
+      auto row_tuple = static_cast<RowTuple*>(t);
+      std::unique_ptr<Tuple> t_ptr(new RowTuple(*row_tuple));
+      tuples_.emplace_back(std::move(t_ptr));
+    } else if (t->type() == TupleType::JOINED_TUPLE) {
+      auto joined_tuple = static_cast<JoinedTuple*>(t);
+      std::unique_ptr<Tuple> joined_tuple_ptr (new JoinedTuple(*joined_tuple));
+      tuples_.emplace_back(std::move(joined_tuple_ptr));
     }
   }
 
   // currently order by only supports sorting JoinedTuple and RowTuple
-  auto comparator = [this] (Tuple* t1, Tuple* t2) -> int {
+  auto comparator = [this] (const std::unique_ptr<Tuple>& t1, const std::unique_ptr<Tuple>& t2) -> int {
     for(size_t k = 0; k < this->offsets_.size(); ++k) {
       int index = this->offsets_[k];
       int result;
       Value v1,v2;
-      t1->cell_at(index, v1);
-      t2->cell_at(index, v2);
+      if (t1->type() == TupleType::ROW_TUPLE) {
+        static_cast<RowTuple*>(t1.get())->cell_at(index, v1);
+        static_cast<RowTuple*>(t2.get())->cell_at(index, v2);
+      } else {
+        static_cast<JoinedTuple*>(t1.get())->cell_at(index, v1);
+        static_cast<JoinedTuple*>(t2.get())->cell_at(index, v2);
+      }
       auto unit = this->units_[k].get();
       switch (v1.attr_type()) {
       case AttrType::INTS :
@@ -88,5 +99,5 @@ RC OrderByPhysicalOperator::close()  {
 }
 
 Tuple *OrderByPhysicalOperator::current_tuple() {
-  return &tuples_[index_in_tuples_];
+  return tuples_[index_in_tuples_].get();
 }

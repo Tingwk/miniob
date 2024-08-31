@@ -81,7 +81,7 @@ public:
           result = common::compare_int((void*)(v1 + offset1), (void*)(v2 + offset1));
         } break;
         default: {
-          ASSERT(false, "unknown attr type. %d", attr_types_);
+          ASSERT(false, "unknown attr type. %d", attr_types_[i]);
           return 0;
         }
       }

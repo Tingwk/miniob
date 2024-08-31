@@ -21,8 +21,7 @@ See the Mulan PSL v2 for more details. */
 #include "common/rc.h"
 
 template <typename ExprPointerType>
-class ExpressionTuple : public Tuple
-{
+class ExpressionTuple : public Tuple {
 public:
   ExpressionTuple(const std::vector<ExprPointerType> &expressions) : expressions_(expressions) {}
   virtual ~ExpressionTuple() = default;
@@ -31,8 +30,8 @@ public:
 
   int cell_num() const override { return static_cast<int>(expressions_.size()); }
 
-  RC cell_at(int index, Value &cell) const override
-  {
+  TupleType type() const override { return TupleType::EXPRESSION_TUPLE; }
+  RC cell_at(int index, Value &cell) const override {
     if (index < 0 || index >= cell_num()) {
       return RC::INVALID_ARGUMENT;
     }
@@ -41,8 +40,7 @@ public:
     return get_value(expression, cell);
   }
 
-  RC spec_at(int index, TupleCellSpec &spec) const override
-  {
+  RC spec_at(int index, TupleCellSpec &spec) const override {
     if (index < 0 || index >= cell_num()) {
       return RC::INVALID_ARGUMENT;
     }
@@ -52,8 +50,7 @@ public:
     return RC::SUCCESS;
   }
 
-  RC find_cell(const TupleCellSpec &spec, Value &cell) const override
-  {
+  RC find_cell(const TupleCellSpec &spec, Value &cell) const override {
     RC rc = RC::SUCCESS;
     if (child_tuple_ != nullptr) {
       rc = child_tuple_->find_cell(spec, cell);
@@ -74,8 +71,7 @@ public:
   }
 
 private:
-  RC get_value(const ExprPointerType &expression, Value &value) const
-  {
+  RC get_value(const ExprPointerType &expression, Value &value) const {
     RC rc = RC::SUCCESS;
     if (child_tuple_ != nullptr) {
       rc = expression->get_value(*child_tuple_, value);

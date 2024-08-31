@@ -40,8 +40,7 @@ string BPFileHeader::to_string() const
 
 BPFrameManager::BPFrameManager(const char *name) : allocator_(name) {}
 
-RC BPFrameManager::init(int pool_num)
-{
+RC BPFrameManager::init(int pool_num) {
   int ret = allocator_.init(false, pool_num);
   if (ret == 0) {
     return RC::SUCCESS;
@@ -49,8 +48,7 @@ RC BPFrameManager::init(int pool_num)
   return RC::NOMEM;
 }
 
-RC BPFrameManager::cleanup()
-{
+RC BPFrameManager::cleanup() {
   if (frames_.count() > 0) {
     return RC::INTERNAL;
   }
@@ -59,8 +57,7 @@ RC BPFrameManager::cleanup()
   return RC::SUCCESS;
 }
 
-int BPFrameManager::purge_frames(int count, function<RC(Frame *frame)> purger)
-{
+int BPFrameManager::purge_frames(int count, function<RC(Frame *frame)> purger) {
   lock_guard<mutex> lock_guard(lock_);
 
   vector<Frame *> frames_can_purge;
@@ -109,8 +106,7 @@ Frame *BPFrameManager::get(int buffer_pool_id, PageNum page_num)
   return get_internal(frame_id);
 }
 
-Frame *BPFrameManager::get_internal(const FrameId &frame_id)
-{
+Frame *BPFrameManager::get_internal(const FrameId &frame_id) {
   Frame *frame = nullptr;
   (void)frames_.get(frame_id, frame);
   if (frame != nullptr) {
@@ -119,8 +115,7 @@ Frame *BPFrameManager::get_internal(const FrameId &frame_id)
   return frame;
 }
 
-Frame *BPFrameManager::alloc(int buffer_pool_id, PageNum page_num)
-{
+Frame *BPFrameManager::alloc(int buffer_pool_id, PageNum page_num) {
   FrameId frame_id(buffer_pool_id, page_num);
 
   lock_guard<mutex> lock_guard(lock_);
@@ -142,16 +137,14 @@ Frame *BPFrameManager::alloc(int buffer_pool_id, PageNum page_num)
   return frame;
 }
 
-RC BPFrameManager::free(int buffer_pool_id, PageNum page_num, Frame *frame)
-{
+RC BPFrameManager::free(int buffer_pool_id, PageNum page_num, Frame *frame) {
   FrameId frame_id(buffer_pool_id, page_num);
 
   lock_guard<mutex> lock_guard(lock_);
   return free_internal(frame_id, frame);
 }
 
-RC BPFrameManager::free_internal(const FrameId &frame_id, Frame *frame)
-{
+RC BPFrameManager::free_internal(const FrameId &frame_id, Frame *frame) {
   Frame                *frame_source = nullptr;
   [[maybe_unused]] bool found        = frames_.get(frame_id, frame_source);
   ASSERT(found && frame == frame_source && frame->pin_count() == 1,
@@ -165,8 +158,7 @@ RC BPFrameManager::free_internal(const FrameId &frame_id, Frame *frame)
   return RC::SUCCESS;
 }
 
-list<Frame *> BPFrameManager::find_list(int buffer_pool_id)
-{
+list<Frame *> BPFrameManager::find_list(int buffer_pool_id) {
   lock_guard<mutex> lock_guard(lock_);
 
   list<Frame *> frames;
@@ -591,8 +583,7 @@ RC DiskBufferPool::recover_page(PageNum page_num)
   return RC::SUCCESS;
 }
 
-RC DiskBufferPool::write_page(PageNum page_num, Page &page)
-{
+RC DiskBufferPool::write_page(PageNum page_num, Page &page) {
   scoped_lock lock_guard(wr_lock_);
   int64_t     offset = ((int64_t)page_num) * sizeof(Page);
   if (lseek(file_desc_, offset, SEEK_SET) == -1) {

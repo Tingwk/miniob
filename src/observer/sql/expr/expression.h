@@ -62,8 +62,7 @@ enum class ExprType
  *
  * TODO 区分unbound和bound的表达式
  */
-class Expression
-{
+class Expression {
 public:
   Expression()          = default;
   virtual ~Expression() = default;
@@ -135,8 +134,7 @@ private:
   std::string name_;
 };
 
-class StarExpr : public Expression
-{
+class StarExpr : public Expression {
 public:
   StarExpr() : table_name_() {}
   StarExpr(const char *table_name) : table_name_(table_name) {}
@@ -153,8 +151,7 @@ private:
   std::string table_name_;
 };
 
-class UnboundFieldExpr : public Expression
-{
+class UnboundFieldExpr : public Expression {
 public:
   UnboundFieldExpr(const std::string &table_name, const std::string &field_name)
       : table_name_(table_name), field_name_(field_name)
@@ -179,8 +176,7 @@ private:
  * @brief 字段表达式
  * @ingroup Expression
  */
-class FieldExpr : public Expression
-{
+class FieldExpr : public Expression {
 public:
   FieldExpr() = default;
   FieldExpr(const Table *table, const FieldMeta *field) : field_(table, field) {}
@@ -216,8 +212,7 @@ private:
  * @brief 常量值表达式
  * @ingroup Expression
  */
-class ValueExpr : public Expression
-{
+class ValueExpr : public Expression {
 public:
   ValueExpr() = default;
   explicit ValueExpr(const Value &value) : value_(value) {}
@@ -249,8 +244,7 @@ private:
  * @brief 类型转换表达式
  * @ingroup Expression
  */
-class CastExpr : public Expression
-{
+class CastExpr : public Expression {
 public:
   CastExpr(std::unique_ptr<Expression> child, AttrType cast_type);
   virtual ~CastExpr();
@@ -277,8 +271,7 @@ private:
  * @brief 比较表达式
  * @ingroup Expression
  */
-class ComparisonExpr : public Expression
-{
+class ComparisonExpr : public Expression {
 public:
   ComparisonExpr(CompOp comp, std::unique_ptr<Expression> left, std::unique_ptr<Expression> right);
   virtual ~ComparisonExpr();
@@ -325,8 +318,7 @@ private:
  * 多个表达式使用同一种关系(AND或OR)来联结
  * 当前miniob仅有AND操作
  */
-class ConjunctionExpr : public Expression
-{
+class ConjunctionExpr : public Expression {
 public:
   enum class Type
   {
@@ -355,8 +347,7 @@ private:
  * @brief 算术表达式
  * @ingroup Expression
  */
-class ArithmeticExpr : public Expression
-{
+class ArithmeticExpr : public Expression {
 public:
   enum class Type
   {
@@ -409,8 +400,7 @@ private:
   std::unique_ptr<Expression> right_;
 };
 
-class UnboundAggregateExpr : public Expression
-{
+class UnboundAggregateExpr : public Expression {
 public:
   UnboundAggregateExpr(const char *aggregate_name, Expression *child);
   virtual ~UnboundAggregateExpr() = default;
@@ -429,8 +419,7 @@ private:
   std::unique_ptr<Expression> child_;
 };
 
-class AggregateExpr : public Expression
-{
+class AggregateExpr : public Expression {
 public:
   enum class Type
   {

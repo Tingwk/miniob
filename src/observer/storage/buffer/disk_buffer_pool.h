@@ -61,8 +61,7 @@ class BufferPoolLogHandler;
  *         效率非常低，你有办法优化吗？
  * @endcode
  */
-struct BPFileHeader
-{
+struct BPFileHeader {
   int32_t buffer_pool_id;   //! buffer pool id
   int32_t page_count;       //! 当前文件一共有多少个页面
   int32_t allocated_pages;  //! 已经分配了多少个页面
@@ -79,13 +78,13 @@ struct BPFileHeader
 /**
  * @brief 管理页面Frame
  * @ingroup BufferPool
+ * @Eviction Protocol: LRU
  * @details 管理内存中的页帧。内存是有限的，内存中能够存放的页帧个数也是有限的。
  * 当内存中的页帧不够用时，需要从内存中淘汰一些页帧，以便为新的页帧腾出空间。
  * 这个管理器负责为所有的BufferPool提供页帧管理服务，也就是所有的BufferPool磁盘文件
  * 在访问时都使用这个管理器映射到内存。
  */
-class BPFrameManager
-{
+class BPFrameManager {
 public:
   BPFrameManager(const char *tag);
 
@@ -145,8 +144,7 @@ private:
   RC     free_internal(const FrameId &frame_id, Frame *frame);
 
 private:
-  class BPFrameIdHasher
-  {
+  class BPFrameIdHasher {
   public:
     size_t operator()(const FrameId &frame_id) const { return frame_id.hash(); }
   };

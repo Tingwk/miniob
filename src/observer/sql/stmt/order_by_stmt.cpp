@@ -11,7 +11,7 @@ RC OrderByStmt::create(std::unordered_map<string,Table*>& name_to_tables , std::
   }
   std::vector<std::unique_ptr<OrderByUnit>> units;
   for (auto & order_by : order_by_specs) {
-    Table * table;
+    Table * table = nullptr;
     if (name_to_tables.size() > 1) {
       auto iter = name_to_tables.find(order_by.table_name);
       if (iter == name_to_tables.end()) {

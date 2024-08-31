@@ -350,8 +350,7 @@ int getFileSize(const char *filePath, int64_t &fileLen)
   return 0;
 }
 
-int writen(int fd, const void *buf, int size)
-{
+int writen(int fd, const void *buf, int size) {
   const char *tmp = (const char *)buf;
   while (size > 0) {
     const ssize_t ret = ::write(fd, tmp, size);

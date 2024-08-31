@@ -60,7 +60,7 @@ RC AggregateVecPhysicalOperator::open(Trx *trx)
   PhysicalOperator &child = *children_[0];
   RC                rc    = child.open(trx);
   if (OB_FAIL(rc)) {
-    LOG_INFO("failed to open child operator. rc=%s", strrc(rc));
+    //LOG_INFO("failed to open child operator. rc=%s", strrc(rc));
     return rc;
   }
 
@@ -116,6 +116,6 @@ RC AggregateVecPhysicalOperator::next(Chunk &chunk)
 RC AggregateVecPhysicalOperator::close()
 {
   children_[0]->close();
-  LOG_INFO("close group by operator");
+  //LOG_INFO("close group by operator");
   return RC::SUCCESS;
 }

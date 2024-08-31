@@ -21,8 +21,7 @@ See the Mulan PSL v2 for more details. */
  * @ingroup Tuple
  * TODO 单元测试
  */
-class CompositeTuple : public Tuple
-{
+class CompositeTuple : public Tuple {
 public:
   CompositeTuple()          = default;
   virtual ~CompositeTuple() = default;
@@ -36,7 +35,7 @@ public:
   CompositeTuple(CompositeTuple &&) = default;
   /// @brief 保留移动赋值函数
   CompositeTuple &operator=(CompositeTuple &&) = default;
-
+  TupleType type() const override { return TupleType::COMPOSITE_TUPLE; }
   int cell_num() const override;
   RC  cell_at(int index, Value &cell) const override;
   RC  spec_at(int index, TupleCellSpec &spec) const override;

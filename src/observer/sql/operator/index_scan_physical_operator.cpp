@@ -11,11 +11,11 @@ See the Mulan PSL v2 for more details. */
 //
 // Created by Wangyunlai on 2022/07/08.
 //
-
 #include "sql/operator/index_scan_physical_operator.h"
 #include "storage/index/index.h"
 #include "storage/trx/trx.h"
 
+using namespace common;
 IndexScanPhysicalOperator::IndexScanPhysicalOperator(Table *table, Index *index, ReadWriteMode mode, const Value *left_value,
     bool left_inclusive, const Value *right_value, bool right_inclusive, const Field& field)
     : table_(table),
@@ -26,7 +26,8 @@ IndexScanPhysicalOperator::IndexScanPhysicalOperator(Table *table, Index *index,
   if (left_value) {
     left_value_ = *left_value;
     left_key_.reset(new char [table->table_meta().record_size()]);
-    memcpy(left_key_.get() + field.meta()->offset(), left_value_.data(), field.meta()->len());
+    //std::memcpy((void*)left_key_.get() + field.meta()->offset(), left_value_.data(), field.meta()->len());
+    
   }
   if (right_value) {
     right_value_ = *right_value;
@@ -51,13 +52,13 @@ RC IndexScanPhysicalOperator::open(Trx *trx) {
       table_->table_meta().record_size(),
       right_inclusive_);
   if (nullptr == index_scanner) {
-    LOG_WARN("failed to create index scanner");
+    //LOG_WARN("failed to create index scanner");
     return RC::INTERNAL;
   }
 
   record_handler_ = table_->record_handler();
   if (nullptr == record_handler_) {
-    LOG_WARN("invalid record handler");
+    //LOG_WARN("invalid record handler");
     index_scanner->destroy();
     return RC::INTERNAL;
   }

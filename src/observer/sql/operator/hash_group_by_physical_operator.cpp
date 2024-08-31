@@ -33,7 +33,7 @@ RC HashGroupByPhysicalOperator::open(Trx *trx)
   PhysicalOperator &child = *children_[0];
   RC                rc    = child.open(trx);
   if (OB_FAIL(rc)) {
-    LOG_INFO("failed to open child operator. rc=%s", strrc(rc));
+    //LOG_INFO("failed to open child operator. rc=%s", strrc(rc));
     return rc;
   }
 
@@ -44,7 +44,7 @@ RC HashGroupByPhysicalOperator::open(Trx *trx)
   while (OB_SUCC(rc = child.next())) {
     Tuple *child_tuple = child.current_tuple();
     if (nullptr == child_tuple) {
-      LOG_WARN("failed to get tuple from child operator. rc=%s", strrc(rc));
+     //LOG_WARN("failed to get tuple from child operator. rc=%s", strrc(rc));
       return RC::INTERNAL;
     }
 
@@ -52,7 +52,7 @@ RC HashGroupByPhysicalOperator::open(Trx *trx)
     GroupType *found_group = nullptr;
     rc                     = find_group(*child_tuple, found_group);
     if (OB_FAIL(rc)) {
-      LOG_WARN("failed to find group. rc=%s", strrc(rc));
+      // LOG_WARN("failed to find group. rc=%s", strrc(rc));
       return rc;
     }
 
@@ -63,7 +63,7 @@ RC HashGroupByPhysicalOperator::open(Trx *trx)
     GroupValueType &group_value = get<1>(*found_group);
     rc = aggregate(get<0>(group_value), group_value_expression_tuple);
     if (OB_FAIL(rc)) {
-      LOG_WARN("failed to aggregate values. rc=%s", strrc(rc));
+      //LOG_WARN("failed to aggregate values. rc=%s", strrc(rc));
       return rc;
     }
   }
@@ -73,7 +73,7 @@ RC HashGroupByPhysicalOperator::open(Trx *trx)
   }
 
   if (OB_FAIL(rc)) {
-    LOG_WARN("failed to get next tuple. rc=%s", strrc(rc));
+    //LOG_WARN("failed to get next tuple. rc=%s", strrc(rc));
     return rc;
   }
 
@@ -82,7 +82,7 @@ RC HashGroupByPhysicalOperator::open(Trx *trx)
     GroupValueType &group_value = get<1>(group);
     rc = evaluate(group_value);
     if (OB_FAIL(rc)) {
-      LOG_WARN("failed to evaluate group value. rc=%s", strrc(rc));
+      //LOG_WARN("failed to evaluate group value. rc=%s", strrc(rc));
       return rc;
     }
   }
@@ -113,7 +113,7 @@ RC HashGroupByPhysicalOperator::next()
 RC HashGroupByPhysicalOperator::close()
 {
   children_[0]->close();
-  LOG_INFO("close group by operator");
+  //LOG_INFO("close group by operator");
   return RC::SUCCESS;
 }
 
@@ -137,7 +137,7 @@ RC HashGroupByPhysicalOperator::find_group(const Tuple &child_tuple, GroupType *
   group_by_expression_tuple.set_tuple(&child_tuple);
   rc = ValueListTuple::make(group_by_expression_tuple, group_by_evaluated_tuple);
   if (OB_FAIL(rc)) {
-    LOG_WARN("failed to get values from expression tuple. rc=%s", strrc(rc));
+    //LOG_WARN("failed to get values from expression tuple. rc=%s", strrc(rc));
     return rc;
   }
 
@@ -146,7 +146,7 @@ RC HashGroupByPhysicalOperator::find_group(const Tuple &child_tuple, GroupType *
     int compare_result = 0;
     rc                 = group_by_evaluated_tuple.compare(get<0>(group), compare_result);
     if (OB_FAIL(rc)) {
-      LOG_WARN("failed to compare group by values. rc=%s", strrc(rc));
+      //LOG_WARN("failed to compare group by values. rc=%s", strrc(rc));
       return rc;
     }
 
@@ -164,7 +164,7 @@ RC HashGroupByPhysicalOperator::find_group(const Tuple &child_tuple, GroupType *
     ValueListTuple child_tuple_to_value;
     rc = ValueListTuple::make(child_tuple, child_tuple_to_value);
     if (OB_FAIL(rc)) {
-      LOG_WARN("failed to make tuple to value list. rc=%s", strrc(rc));
+      //LOG_WARN("failed to make tuple to value list. rc=%s", strrc(rc));
       return rc;
     }
 

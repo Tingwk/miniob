@@ -62,8 +62,7 @@ private:
  * 为了防止在使用过程中页面被淘汰，这里使用了pin count，当页面被使用时，pin count会增加，
  * 当页面不再使用时，pin count会减少。当pin count为0时，页面可以被淘汰。
  */
-class Frame
-{
+class Frame {
 public:
   ~Frame()
   {

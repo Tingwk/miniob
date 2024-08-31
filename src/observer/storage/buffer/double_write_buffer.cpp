@@ -24,8 +24,7 @@ See the Mulan PSL v2 for more details. */
 
 using namespace common;
 
-struct DoubleWritePage
-{
+struct DoubleWritePage {
 public:
   DoubleWritePage() = default;
   DoubleWritePage(int32_t buffer_pool_id, PageNum page_num, int32_t page_index, Page &page);
@@ -226,6 +225,7 @@ RC DiskDoubleWriteBuffer::clear_pages(DiskBufferPool *buffer_pool) {
       break;
     }
   }
+  // If spec_pages is not empty, header page was changed(bitmap_), so write the header page to disk to persist it from crash.
   if (!spec_pages.empty()) {
     header_.page_cnt -= spec_pages.size();
     if (lseek(file_desc_, 0, SEEK_SET) == -1) {
@@ -260,6 +260,7 @@ RC DiskDoubleWriteBuffer::load_pages() {
     return RC::IOERR_SEEK;
   }
   memset(header_.bit_map, 0, BP_PAGE_SIZE - sizeof(int32_t));
+  assert(sizeof(header_) == BP_PAGE_SIZE);
   int ret = readn(file_desc_, &header_, sizeof(header_));
   if (ret != 0 && ret != -1) {
     LOG_ERROR("Failed to load page header, file_desc:%d, due to failed to read data:%s, ret=%d",
