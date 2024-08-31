@@ -104,8 +104,7 @@ public:
    */
   virtual RC find_cell(const TupleCellSpec &spec, Value &cell) const = 0;
 
-  virtual std::string to_string() const
-  {
+  virtual std::string to_string() const {
     std::string str;
     const int   cell_num = this->cell_num();
     for (int i = 0; i < cell_num - 1; i++) {
@@ -170,14 +169,25 @@ public:
 class RowTuple : public Tuple {
 public:
   RowTuple() = default;
-  RowTuple(const RowTuple& other) {
-    table_ = other.table_;
-    record_ = other.record_;
-    speces_ = std::move(other.speces_);
+  RowTuple(const RowTuple& other): table_(other.table_) {
+    record_ = new Record();
+    own_record_ = true;
+    record_->set_rid(other.record_->rid());
+    record_->copy_data(other.record_->data(), other.record_->len());
+    speces_.resize(other.speces_.size());
+    for (size_t i = 0; i < speces_.size(); i++) {
+      speces_[i] = new FieldExpr(other.speces_[i]->field());
+    }
   }
+  
   virtual ~RowTuple() {
+    if (nullptr != record_ && own_record_) {
+      delete record_;
+    }
     for (FieldExpr *spec : speces_) {
-      delete spec;
+      if (spec != nullptr) {
+        delete spec;
+      }
     }
     speces_.clear();
   }
@@ -252,8 +262,9 @@ public:
   const Record &record() const { return *record_; }
 
 private:
-  Record                  *record_ = nullptr;
   const Table             *table_  = nullptr;
+  Record                  *record_ = nullptr;
+  bool                     own_record_ = false;
   std::vector<FieldExpr *> speces_;
 };
 
@@ -320,6 +331,10 @@ class ValueListTuple : public Tuple {
 public:
   ValueListTuple()          = default;
   virtual ~ValueListTuple() = default;
+  ValueListTuple(const ValueListTuple& other) {
+    specs_ = other.specs_;
+    cells_ = other.cells_;
+  }
 
   void set_names(const std::vector<TupleCellSpec> &specs) { specs_ = specs; }
   void set_cells(const std::vector<Value> &cells) { cells_ = cells; }
@@ -394,13 +409,28 @@ private:
 class JoinedTuple : public Tuple {
 public:
   JoinedTuple()          = default;
-  virtual ~JoinedTuple() = default;
+  virtual ~JoinedTuple() {
+    if (own_left_ && left_ != nullptr) {
+      delete left_;
+    }
+    if (own_right_ && right_ != nullptr) {
+      delete right_;
+    }
+  }
   JoinedTuple(const JoinedTuple& other) {
     left_ = other.left_;
     right_ = other.right_;
   }
-  void set_left(Tuple *left) { left_ = left; }
+  void set_left(Tuple *left) { left_ = left;}
   void set_right(Tuple *right) { right_ = right; }
+  void set_left(Tuple *left, bool own_left) {
+    set_left(left);
+    own_left_ = own_left;
+  }
+  void set_right(Tuple *right, bool own_right) {
+    set_right(right);
+    own_right_ = own_right;
+  }
   auto left_tuple() -> Tuple* { return left_; }
   auto right_tuple() -> Tuple* { return right_; }
   int cell_num() const override { return left_->cell_num() + right_->cell_num(); }
@@ -443,4 +473,34 @@ public:
 private:
   Tuple *left_  = nullptr;
   Tuple *right_ = nullptr;
+  bool own_left_ = false;
+  bool own_right_ = false;
 };
+
+static Tuple* tuple_cre_factory(Tuple* t) {
+  Tuple * result;
+  switch (t->type()) {
+  case TupleType::ROW_TUPLE: {
+    auto row_tuple = static_cast<RowTuple*>(t);
+    result = new RowTuple(*row_tuple);
+  }break;
+  case TupleType::JOINED_TUPLE:{
+    auto joined_tuple = static_cast<JoinedTuple*>(t); 
+    JoinedTuple *j_tuple = new JoinedTuple;
+    auto left = tuple_cre_factory(joined_tuple->left_tuple());
+    auto right = tuple_cre_factory(joined_tuple->right_tuple());
+    j_tuple->set_left(left, true);
+    j_tuple->set_right(right, true);
+    result = j_tuple;
+  }break;
+  case TupleType::VALUE_LIST_TUPLE:{
+    auto val_list_tuple = static_cast<ValueListTuple*>(t);
+    auto tuple = new ValueListTuple(*val_list_tuple);
+    result = tuple;
+  }break;
+  default:{
+    result = nullptr;
+  }break;
+  }
+  return result;
+}

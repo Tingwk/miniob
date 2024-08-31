@@ -100,8 +100,7 @@ struct RIDHash
 class Record {
 public:
   Record() = default;
-  ~Record()
-  {
+  ~Record() {
     if (owner_ && data_ != nullptr) {
       free(data_);
       data_ = nullptr;
@@ -122,8 +121,7 @@ public:
     }
   }
 
-  Record &operator=(const Record &other)
-  {
+  Record &operator=(const Record &other) {
     if (this == &other) {
       return *this;
     }
@@ -138,8 +136,7 @@ public:
     return *this;
   }
 
-  Record(Record &&other)
-  {
+  Record(Record &&other) {
     rid_ = other.rid_;
 
     if (!other.owner_) {
@@ -157,8 +154,7 @@ public:
     }
   }
 
-  Record &operator=(Record &&other)
-  {
+  Record &operator=(Record &&other) {
     if (this == &other) {
       return *this;
     }
@@ -168,13 +164,11 @@ public:
     return *this;
   }
 
-  void set_data(char *data, int len = 0)
-  {
+  void set_data(char *data, int len = 0) {
     this->data_ = data;
     this->len_  = len;
   }
-  void set_data_owner(char *data, int len)
-  {
+  void set_data_owner(char *data, int len) {
     ASSERT(len != 0, "the len of data should not be 0");
     this->~Record();
 
@@ -183,8 +177,7 @@ public:
     this->owner_ = true;
   }
 
-  RC copy_data(const char *data, int len)
-  {
+  RC copy_data(const char *data, int len) {
     ASSERT(len!= 0, "the len of data should not be 0");
     char *tmp = (char *)malloc(len);
     if (nullptr == tmp) {
@@ -197,8 +190,7 @@ public:
     return RC::SUCCESS;
   }
 
-  RC new_record(int len)
-  {
+  RC new_record(int len) {
     ASSERT(len!= 0, "the len of data should not be 0");
     char *tmp = (char *)malloc(len);
     if (nullptr == tmp) {
@@ -209,8 +201,7 @@ public:
     return RC::SUCCESS;
   }
 
-  RC set_field(int field_offset, int field_len, char *data)
-  {
+  RC set_field(int field_offset, int field_len, char *data) {
     if (!owner_) {
       LOG_ERROR("cannot set field when record does not own the memory");
       return RC::INTERNAL;

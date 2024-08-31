@@ -37,7 +37,7 @@ public:
   int cell_num() const { return tuple_.cell_num(); }
 
   Tuple *current_tuple() override;
-
+  void add_projection(const Table *table, const FieldMeta *field_meta);
   RC tuple_schema(TupleSchema &schema) const override;
 
 private:

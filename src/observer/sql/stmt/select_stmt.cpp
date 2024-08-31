@@ -174,7 +174,7 @@ RC SelectStmt::create(Db *db, SelectSqlNode &select_sql, Stmt *&stmt)
   }
 
   // order by
-  OrderByStmt *order_stmt;
+  OrderByStmt *order_stmt = nullptr;
   if (rc = OrderByStmt::create(table_map, select_sql.order_by, order_stmt); rc != RC::SUCCESS) {
     LOG_WARN("cannot construct filter stmt");
     return rc;

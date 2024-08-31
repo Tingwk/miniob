@@ -16,6 +16,8 @@ RC OrderByStmt::create(std::unordered_map<string,Table*>& name_to_tables , std::
       auto iter = name_to_tables.find(order_by.table_name);
       if (iter == name_to_tables.end()) {
         return RC::SCHEMA_TABLE_NOT_EXIST;
+      } else {
+        table = iter->second;
       }
     } else {
       table = name_to_tables.begin()->second;

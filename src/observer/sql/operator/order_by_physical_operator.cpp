@@ -36,27 +36,26 @@ RC OrderByPhysicalOperator::open(Trx* trx) {
     if (t->type() == TupleType::ROW_TUPLE) {
       auto row_tuple = static_cast<RowTuple*>(t);
       std::unique_ptr<Tuple> t_ptr(new RowTuple(*row_tuple));
+      std::cout << t_ptr.get() << '\n';
       tuples_.emplace_back(std::move(t_ptr));
     } else if (t->type() == TupleType::JOINED_TUPLE) {
       auto joined_tuple = static_cast<JoinedTuple*>(t);
-      std::unique_ptr<Tuple> joined_tuple_ptr (new JoinedTuple(*joined_tuple));
+      JoinedTuple *tuple = new JoinedTuple;
+      tuple->set_left(tuple_cre_factory(joined_tuple->left_tuple()), true);
+      tuple->set_right(tuple_cre_factory(joined_tuple->right_tuple()), true);
+      std::unique_ptr<Tuple> joined_tuple_ptr(tuple);
       tuples_.emplace_back(std::move(joined_tuple_ptr));
     }
   }
 
   // currently order by only supports sorting JoinedTuple and RowTuple
-  auto comparator = [this] (const std::unique_ptr<Tuple>& t1, const std::unique_ptr<Tuple>& t2) -> int {
+  auto comparator = [this] (const std::unique_ptr<Tuple>& t1, const std::unique_ptr<Tuple>& t2) -> bool {
     for(size_t k = 0; k < this->offsets_.size(); ++k) {
       int index = this->offsets_[k];
       int result;
       Value v1,v2;
-      if (t1->type() == TupleType::ROW_TUPLE) {
-        static_cast<RowTuple*>(t1.get())->cell_at(index, v1);
-        static_cast<RowTuple*>(t2.get())->cell_at(index, v2);
-      } else {
-        static_cast<JoinedTuple*>(t1.get())->cell_at(index, v1);
-        static_cast<JoinedTuple*>(t2.get())->cell_at(index, v2);
-      }
+      t1->cell_at(index, v1);
+      t2->cell_at(index,v2);
       auto unit = this->units_[k].get();
       switch (v1.attr_type()) {
       case AttrType::INTS :
@@ -70,14 +69,15 @@ RC OrderByPhysicalOperator::open(Trx* trx) {
         break;
       case AttrType::CHARS:
         result = common::compare_string((void*)(v1.data()), unit->field_->len() , (void*)v2.data(), unit->field_->len());
+        break;
       default:
         // UNREACHABLE.
         assert(false);
         result = 0;
         break;
       }
-      if (result != 0 ) {
-        return unit->asc_ ? result : -result;
+      if (result != 0) {
+        return unit->asc_ ? (result > 0 ? false : true) : (result > 0 ? true: false);
       }
     }
     return 0;
@@ -87,10 +87,10 @@ RC OrderByPhysicalOperator::open(Trx* trx) {
 }
 
 RC OrderByPhysicalOperator::next() {
+  ++index_in_tuples_;
   if (static_cast<size_t>(index_in_tuples_) == tuples_.size()) {
     return RC::RECORD_EOF;
   }
-  ++index_in_tuples_;
   return RC::SUCCESS;
 }
 

@@ -76,7 +76,9 @@ See the Mulan PSL v2 for more details. */
   DEFINE_RC(LOGBUF_FULL)                 \
   DEFINE_RC(LOG_FILE_FULL)               \
   DEFINE_RC(LOG_ENTRY_INVALID)           \
-  DEFINE_RC(INDEX_FIELD_ERROR)
+  DEFINE_RC(INDEX_FIELD_ERROR)           \
+  DEFINE_RC(NO_ORDER_BY_SPECIFICATION)           \
+
 
 enum class RC
 {
