@@ -57,6 +57,21 @@ RC FilterStmt::filter_sub_queries(std::vector<FilterUnit*>& vec_querys) {
   return RC::SUCCESS;
 }
 
+RC FilterStmt::filter_value_list(std::vector<FilterUnit*>& value_list) {
+  for (size_t i = 0; i < filter_units_.size(); i++) {
+    if (!filter_flags_[i]) {
+      continue;
+    }
+    auto unit = filter_units_[i];
+    if (unit->left().value_type == ValueType::ATTRIBUTE && unit->right().value_type == ValueType::VALUE_LIST) {
+      value_list.emplace_back(unit);
+      filter_flags_[i] = false;
+    }
+  }
+  
+  return RC::SUCCESS;
+}
+
 RC FilterStmt::create(Db *db, Table *default_table, const std::unordered_map<std::string, Table *> *tables,
     ConditionSqlNode *conditions, int condition_num, FilterStmt *&stmt) {
   RC rc = RC::SUCCESS;
@@ -134,45 +149,62 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, const std::unord
     filter_unit->set_left(filter_obj);
   }
 
-  if (condition.right_value_type == ValueType::ATTRIBUTE) {
-    Table           *table = nullptr;
-    const FieldMeta *field = nullptr;
-    rc                     = get_table_and_field(db, default_table, tables, condition.right_attr, table, field);
-    if (rc != RC::SUCCESS) {
-      LOG_WARN("cannot find attr");
-      return rc;
-    }
-    FilterObj filter_obj;
-    filter_obj.init_attr(Field(table, field));
-    filter_unit->set_right(filter_obj);
-  } else if (condition.right_value_type == ValueType::CONSTANT) {
-    FilterObj filter_obj;
-    if (condition.left_value_type == ValueType::ATTRIBUTE && filter_unit->left().field.attr_type() == AttrType::DATES) {
-      ASSERT(condition.right_value.attr_type() == AttrType::CHARS, "value type must be chars");
-      auto date_str = condition.right_value.get_string();
-      int date_val;
-      if (rc = date_str_to_int(date_str.c_str(), date_val); rc != RC::SUCCESS) {
+  switch (condition.right_value_type) {
+    case ValueType::ATTRIBUTE: {
+      Table           *table = nullptr;
+      const FieldMeta *field = nullptr;
+      rc                     = get_table_and_field(db, default_table, tables, condition.right_attr, table, field);
+      if (rc != RC::SUCCESS) {
+        LOG_WARN("cannot find attr");
         return rc;
       }
-      Value v;
-      v.set_date(date_val);
-      filter_obj.init_value(v);
-    } else {
-      filter_obj.init_value(condition.right_value);
-    }
-    filter_unit->set_right(filter_obj);
-  } else {
-    assert(condition.left_value_type == ValueType::ATTRIBUTE);
-    Stmt * select_stmt;
-    rc = SelectStmt::create(db, (condition.right_sub_queries->selection), select_stmt);
-    if (rc !=  RC::SUCCESS || (static_cast<SelectStmt*>(select_stmt))->query_expressions().size() > 1) {
-      rc = RC::INTERNAL;
-      LOG_WARN("cannot create sub query");
-      return rc;
-    }
-    FilterObj obj;
-    obj.init_sub_query(select_stmt);
-    filter_unit->set_right(obj);
+      FilterObj filter_obj;
+      filter_obj.init_attr(Field(table, field));
+      filter_unit->set_right(filter_obj);
+    }break;
+    case ValueType::CONSTANT: {
+      FilterObj filter_obj;
+      if (condition.left_value_type == ValueType::ATTRIBUTE && filter_unit->left().field.attr_type() == AttrType::DATES) {
+        ASSERT(condition.right_value.attr_type() == AttrType::CHARS, "value type must be chars");
+        auto date_str = condition.right_value.get_string();
+        int date_val;
+        if (rc = date_str_to_int(date_str.c_str(), date_val); rc != RC::SUCCESS) {
+          return rc;
+        }
+        Value v;
+        v.set_date(date_val);
+        filter_obj.init_value(v);
+      } else {
+        filter_obj.init_value(condition.right_value);
+      }
+      filter_unit->set_right(filter_obj);
+    }break;
+    case ValueType::SUB_QUERY: {
+      assert(condition.left_value_type == ValueType::ATTRIBUTE);
+      Stmt * select_stmt;
+      rc = SelectStmt::create(db, (condition.right_sub_queries->selection), select_stmt);
+      if (rc !=  RC::SUCCESS || (static_cast<SelectStmt*>(select_stmt))->query_expressions().size() > 1) {
+        rc = RC::INTERNAL;
+        LOG_WARN("cannot create sub query");
+        return rc;
+      }
+      FilterObj obj;
+      obj.init_sub_query(select_stmt);
+      filter_unit->set_right(obj);
+    }break;
+    case ValueType::VALUE_LIST: {
+      assert(condition.left_value_type == ValueType::ATTRIBUTE);
+      for (auto &value : (*condition.value_list)) {
+        if (value.attr_type() != filter_unit->left().field.attr_type()) {
+          return RC::INTERNAL;
+        }
+      }
+      FilterObj obj;
+      obj.init_value_list(condition.value_list);
+      filter_unit->set_right(obj);
+    }break;
+    default:
+      break;
   }
 
   if (ValueType::CONSTANT == condition.left_value_type) {

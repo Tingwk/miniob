@@ -41,6 +41,7 @@ See the Mulan PSL v2 for more details. */
 #include "sql/expr/expression_iterator.h"
 #include "sql/expr/sub_query_logical_expr.h"
 #include "sql/expr/sub_query_physical_expr.h"
+#include "sql/expr/value_list_expression.h"
 
 using namespace std;
 using namespace common;
@@ -149,6 +150,12 @@ RC LogicalPlanGenerator::create_plan(SelectStmt *select_stmt, unique_ptr<Logical
         std::unique_ptr<ComparisonExpr> cmp_expr (new ComparisonExpr(unit->comp(), std::move(left), std::move(right)));
         predicates.emplace_back(std::move(cmp_expr));
         select_stmt->filter_stmt()->set_flag(i, false);
+      } else if (unit->left().value_type == ValueType::ATTRIBUTE && unit->left().field.table() == table && unit->right().value_type == ValueType::VALUE_LIST) {
+        std::unique_ptr<FieldExpr> left(new FieldExpr(unit->left().field));
+        std::unique_ptr<ValueListExpr> right(new ValueListExpr(unit->right().values));
+        std::unique_ptr<ComparisonExpr> cmp_expr(new ComparisonExpr(unit->comp(), std::move(left), std::move(right)));
+        predicates.emplace_back(std::move(cmp_expr));
+        select_stmt->filter_stmt()->set_flag(i, false);
       }
     }
     if (!predicates.empty()) {
@@ -227,8 +234,10 @@ RC LogicalPlanGenerator::create_plan(SelectStmt *select_stmt, unique_ptr<Logical
 RC LogicalPlanGenerator::create_plan(FilterStmt *filter_stmt, unique_ptr<LogicalOperator> &logical_operator) {
   std::vector<unique_ptr<Expression>> cmp_exprs;
   std::vector<FilterUnit*> sub_queries;
+  std::vector<FilterUnit*> value_list;
   filter_stmt->filter_sub_queries(sub_queries);
   filter_stmt->filter_expression(cmp_exprs);
+  filter_stmt->filter_value_list(value_list);
   for(auto unit : sub_queries) {
     std::unique_ptr<LogicalOperator> sub_query;
     auto select_stmt = static_cast<SelectStmt*>(unit->right().sub_query);
@@ -240,6 +249,12 @@ RC LogicalPlanGenerator::create_plan(FilterStmt *filter_stmt, unique_ptr<Logical
     std::unique_ptr<FieldExpr> left(new FieldExpr(unit->left().field));
     std::unique_ptr<SubQueryLogicalExpr> right(new SubQueryLogicalExpr(std::move(sub_query)));
     right->set_with_table_name(select_stmt->tables().size() > 1);
+    auto cmp_expr = new ComparisonExpr(unit->comp(), std::move(left), std::move(right));
+    cmp_exprs.emplace_back(cmp_expr);
+  }
+  for (auto unit : value_list) {
+    std::unique_ptr<FieldExpr> left(new FieldExpr(unit->left().field));
+    std::unique_ptr<ValueListExpr> right(new ValueListExpr(unit->right().values));
     auto cmp_expr = new ComparisonExpr(unit->comp(), std::move(left), std::move(right));
     cmp_exprs.emplace_back(cmp_expr);
   }

@@ -743,6 +743,49 @@ where:
       delete $6;
       $$->emplace_back(q);
     }
+    | WHERE rel_attr comp_op LBRACE value value_list RBRACE {
+      $$ = new std::vector<ConditionSqlNode>;
+      ConditionSqlNode q;
+      q.left_value_type = ValueType::ATTRIBUTE;
+      q.left_attr = *$2;
+      q.comp = $3;
+      q.right_value_type = ValueType::VALUE_LIST;
+      delete $2;
+      if ($6 != nullptr) {
+        q.value_list = $6;
+      } else {
+        q.value_list = new std::vector<Value>();
+      }
+      q.value_list->emplace(q.value_list->begin(), *$5);
+      delete $5;
+      $$->emplace_back(q);
+    }
+    | WHERE LBRACE value value_list RBRACE comp_op rel_attr {
+      $$ = new std::vector<ConditionSqlNode>;
+      ConditionSqlNode q;
+      q.left_value_type = ValueType::ATTRIBUTE;
+      q.left_attr = *$7;
+      q.comp = $6;
+      if (q.comp == CompOp::LESS_THAN) {
+        q.comp = CompOp::GREAT_THAN;
+      } else if (q.comp == CompOp::LESS_EQUAL) {
+        q.comp = CompOp::GREAT_EQUAL;
+      } else if (q.comp == CompOp::GREAT_THAN) {
+        q.comp = CompOp::LESS_THAN;
+      } else if (q.comp == CompOp::GREAT_EQUAL) {
+        q.comp = CompOp::LESS_EQUAL;
+      } 
+      q.right_value_type = ValueType::VALUE_LIST;
+      if ($4 != nullptr) {
+        q.value_list = $4;
+      } else {
+        q.value_list = new vector<Value>();
+      }
+      q.value_list->emplace(q.value_list->begin(), *$3);
+      delete $3;
+      delete $7;
+      $$->emplace_back(q);
+    }
     ;
 condition_list:
     /* empty */

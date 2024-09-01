@@ -70,6 +70,7 @@ enum class ValueType {
   ATTRIBUTE,
   CONSTANT,
   SUB_QUERY,
+  VALUE_LIST,
 };
 
 /**
@@ -93,6 +94,7 @@ struct ConditionSqlNode
   RelAttrSqlNode right_attr;     ///< right-hand side attribute if right_is_attr = TRUE 右边的属性
   Value          right_value;    ///< right-hand side value if right_is_attr = FALSE
   ParsedSqlNode* right_sub_queries; // if ConditionSqlNode represents a sub_query, sub_query will always on the right-hand side.
+  std::vector<Value> *value_list;
 };
 
 struct JoinSqlNode {

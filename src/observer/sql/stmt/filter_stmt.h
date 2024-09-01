@@ -30,6 +30,7 @@ struct FilterObj
   Field field;
   Value value;
   Stmt * sub_query;
+  std::vector<Value> *values;
   void init_attr(const Field &field) {
     value_type     = ValueType::ATTRIBUTE;
     this->field = field;
@@ -43,6 +44,11 @@ struct FilterObj
   void init_sub_query(Stmt * query) {
     this->sub_query = query;
     value_type = ValueType::SUB_QUERY;
+  }
+  
+  void init_value_list(std::vector<Value>* ptr) {
+    this->values = ptr;
+    value_type = ValueType::VALUE_LIST;
   }
 };
 
@@ -93,6 +99,7 @@ public:
   }
   RC filter_expression(std::vector<std::unique_ptr<Expression>>& cmp_exprs);
   RC filter_sub_queries(std::vector<FilterUnit*>& vec_querys);
+  RC filter_value_list(std::vector<FilterUnit*>& value_list);
 private:
   std::vector<FilterUnit *> filter_units_;  // 默认当前都是AND关系
   // used to mark whether a filter has been pushed down.

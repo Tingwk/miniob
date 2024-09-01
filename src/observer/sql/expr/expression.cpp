@@ -17,6 +17,7 @@ See the Mulan PSL v2 for more details. */
 #include "sql/expr/arithmetic_operator.hpp"
 #include "sql/operator/project_physical_operator.h"
 #include "sql/expr/sub_query_physical_expr.h"
+#include "sql/expr/value_list_expression.h"
 
 using namespace std;
 
@@ -293,9 +294,15 @@ RC ComparisonExpr::get_value(const Tuple &tuple, Value &value) const
     LOG_WARN("failed to get value of left expression. rc=%s", strrc(rc));
     return rc;
   }
-  if (right_->type() == ExprType::SUB_QUERY_PHYSICAL_EXPR) {
-    auto sub_query = static_cast<SubQueryPhysicalExpr*>(right_.get());
-    auto results = sub_query->get_sub_query_results();
+  if (right_->type() == ExprType::SUB_QUERY_PHYSICAL_EXPR || right_->type() == ExprType::VALUE_LIST_EXPR) {
+    std::vector<Value> results;
+    if (right_->type() == ExprType::SUB_QUERY_PHYSICAL_EXPR) {
+      auto sub_query = static_cast<SubQueryPhysicalExpr*>(right_.get());
+      results = sub_query->get_sub_query_results();
+    } else {
+      auto vals_list = static_cast<ValueListExpr*>(right_.get());
+      results = vals_list->values_list();
+    }
     bool bool_value = false;
     switch (comp_) {
       case CompOp::IN_: {
