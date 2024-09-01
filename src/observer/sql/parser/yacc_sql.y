@@ -118,6 +118,8 @@ UnboundAggregateExpr *create_aggregate_expression(const char *aggregate_name,
         NE
         NOT
         LIKE
+        IN
+        EXISTS
 
 /** union 中定义各种数据类型，真实生成的代码也是union类型，所以不能有非POD类型的数据 **/
 %union {
@@ -482,6 +484,7 @@ update_stmt:      /*  update 语句的语法解析树*/
 select_stmt:        /*  select 语句的语法解析树*/
     SELECT expression_list FROM ID rel_list where group_by order_by
     {
+      std::cout << "select_stmt\n";
       $$ = new ParsedSqlNode(SCF_SELECT);
       if ($2 != nullptr) {
         $$->selection.expressions.swap(*$2);
@@ -497,8 +500,10 @@ select_stmt:        /*  select 语句的语法解析树*/
       free($4);
       
       if ($6 != nullptr) {
+        //cout << (*$6)[0].right_sub_queries << '\n';
         $$->selection.conditions.swap(*$6);
         delete $6;
+        //cout << ($$->selection.conditions)[0].right_sub_queries << '\n';
       }
 
       if ($7 != nullptr) {
@@ -626,6 +631,7 @@ expression:
 
 rel_attr:
     ID {
+      std::cout << $1<<'\n';
       $$ = new RelAttrSqlNode;
       $$->attribute_name = $1;
       free($1);
@@ -703,6 +709,40 @@ where:
     | WHERE condition_list {
       $$ = $2;  
     }
+    | WHERE rel_attr comp_op LBRACE select_stmt RBRACE {
+      $$ = new std::vector<ConditionSqlNode>;
+      ConditionSqlNode q;
+      q.left_value_type = ValueType::ATTRIBUTE;
+      q.left_attr = *$2;
+      q.comp = $3;
+      q.right_value_type = ValueType::SUB_QUERY;
+      /*std::cout << "709 address:" << $5 << '\n';
+      cout << $5->selection.relations[0] << '\n'; */
+      q.right_sub_queries = $5;
+      delete $2;
+      $$->emplace_back(q);
+      // cout << (*$$)[0].right_sub_queries << '\n';
+    } 
+    | WHERE LBRACE select_stmt RBRACE comp_op rel_attr {
+      $$ = new std::vector<ConditionSqlNode>;
+      ConditionSqlNode q;
+      q.left_value_type = ValueType::ATTRIBUTE;
+      q.left_attr = *$6;
+      q.comp = $5;
+      if (q.comp == CompOp::LESS_THAN) {
+        q.comp = CompOp::GREAT_THAN;
+      } else if (q.comp == CompOp::LESS_EQUAL) {
+        q.comp = CompOp::GREAT_EQUAL;
+      } else if (q.comp == CompOp::GREAT_THAN) {
+        q.comp = CompOp::LESS_THAN;
+      } else if (q.comp == CompOp::GREAT_EQUAL) {
+        q.comp = CompOp::LESS_EQUAL;
+      } 
+      q.right_value_type = ValueType::SUB_QUERY;
+      q.right_sub_queries = $3;
+      delete $6;
+      $$->emplace_back(q);
+    }
     ;
 condition_list:
     /* empty */
@@ -724,9 +764,9 @@ condition:
     rel_attr comp_op value
     {
       $$ = new ConditionSqlNode;
-      $$->left_is_attr = 1;
+      $$->left_value_type = ValueType::ATTRIBUTE;
       $$->left_attr = *$1;
-      $$->right_is_attr = 0;
+      $$->right_value_type = ValueType::CONSTANT;
       $$->right_value = *$3;
       $$->comp = $2;
 
@@ -736,9 +776,9 @@ condition:
     | value comp_op value 
     {
       $$ = new ConditionSqlNode;
-      $$->left_is_attr = 0;
+      $$->left_value_type = ValueType::CONSTANT;
       $$->left_value = *$1;
-      $$->right_is_attr = 0;
+      $$->right_value_type = ValueType::CONSTANT;
       $$->right_value = *$3;
       $$->comp = $2;
 
@@ -748,9 +788,9 @@ condition:
     | rel_attr comp_op rel_attr
     {
       $$ = new ConditionSqlNode;
-      $$->left_is_attr = 1;
+      $$->left_value_type = ValueType::ATTRIBUTE;
       $$->left_attr = *$1;
-      $$->right_is_attr = 1;
+      $$->right_value_type = ValueType::ATTRIBUTE;
       $$->right_attr = *$3;
       $$->comp = $2;
 
@@ -760,9 +800,9 @@ condition:
     | value comp_op rel_attr
     {
       $$ = new ConditionSqlNode;
-      $$->left_is_attr = 0;
+      $$->left_value_type = ValueType::CONSTANT;
       $$->left_value = *$1;
-      $$->right_is_attr = 1;
+      $$->right_value_type = ValueType::ATTRIBUTE;
       $$->right_attr = *$3;
       $$->comp = $2;
 
@@ -780,6 +820,10 @@ comp_op:
     | NE { $$ = NOT_EQUAL; }
     | LIKE { $$ = LK; }
     | NOT LIKE {$$ = NOT_LK; }
+    | IN { $$ = IN_; }
+    | NOT IN { $$ = NOT_IN_; }
+    | EXISTS { $$ = EXISTS_; }
+    | NOT EXISTS { $$ = NOT_EXISTS_; }
     ;
 
 // your code here
@@ -804,7 +848,7 @@ order_by:
     ;
 order_list:
   rel_attr {
-    std::cout << "[1]\n";
+    //std::cout << "[1]\n";
     $$ = new vector<OrderBySqlNode>();
     OrderBySqlNode node; 
     node.table_name = $1->relation_name;
@@ -814,7 +858,7 @@ order_list:
     $$->emplace_back(std::move(node));
   }
   | rel_attr COMMA order_list {
-    std::cout << "[2]\n";
+    //std::cout << "[2]\n";
     $$ = $3;
     OrderBySqlNode node; 
     node.table_name = $1->relation_name;
@@ -824,7 +868,7 @@ order_list:
     $$->emplace($$->begin(), std::move(node));
   }
   | rel_attr ASC {
-    std::cout << "[3]\n";
+    //std::cout << "[3]\n";
     $$ = new vector<OrderBySqlNode>();
     OrderBySqlNode node; 
     node.table_name = $1->relation_name;
@@ -834,7 +878,7 @@ order_list:
     $$->emplace_back(std::move(node));
   } 
   | rel_attr ASC COMMA order_list {
-    std::cout << "[4]\n";
+    //std::cout << "[4]\n";
     $$ = $4;
     OrderBySqlNode node; 
     node.table_name = $1->relation_name;
@@ -844,7 +888,7 @@ order_list:
     $$->emplace($$->begin(), std::move(node));
   } 
   | rel_attr DESC {
-    std::cout << "[5]\n";
+    //std::cout << "[5]\n";
     $$ = new vector<OrderBySqlNode>();
     OrderBySqlNode node; 
     node.table_name = $1->relation_name;
@@ -855,7 +899,7 @@ order_list:
     std::cout << (*$$)[0].attribute_name << '\n';
   } 
   | rel_attr DESC COMMA order_list {
-    std::cout << "[6]\n";
+    //std::cout << "[6]\n";
     $$ = $4;
     OrderBySqlNode node; 
     node.table_name = $1->relation_name;

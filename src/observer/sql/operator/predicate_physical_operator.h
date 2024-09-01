@@ -23,8 +23,7 @@ class FilterStmt;
  * @brief 过滤/谓词物理算子
  * @ingroup PhysicalOperator
  */
-class PredicatePhysicalOperator : public PhysicalOperator
-{
+class PredicatePhysicalOperator : public PhysicalOperator {
 public:
   PredicatePhysicalOperator(std::unique_ptr<Expression> expr);
 

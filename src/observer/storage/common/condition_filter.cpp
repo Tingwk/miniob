@@ -55,8 +55,7 @@ RC DefaultConditionFilter::init(const ConDesc &left, const ConDesc &right, AttrT
   return RC::SUCCESS;
 }
 
-RC DefaultConditionFilter::init(Table &table, const ConditionSqlNode &condition)
-{
+RC DefaultConditionFilter::init(Table &table, const ConditionSqlNode &condition) {
   const TableMeta &table_meta = table.table_meta();
   ConDesc          left;
   ConDesc          right;
@@ -64,7 +63,7 @@ RC DefaultConditionFilter::init(Table &table, const ConditionSqlNode &condition)
   AttrType type_left  = AttrType::UNDEFINED;
   AttrType type_right = AttrType::UNDEFINED;
 
-  if (1 == condition.left_is_attr) {
+  if (ValueType::ATTRIBUTE == condition.left_value_type) {
     left.is_attr                = true;
     const FieldMeta *field_left = table_meta.field(condition.left_attr.attribute_name.c_str());
     if (nullptr == field_left) {
@@ -84,7 +83,7 @@ RC DefaultConditionFilter::init(Table &table, const ConditionSqlNode &condition)
     left.attr_offset = 0;
   }
 
-  if (1 == condition.right_is_attr) {
+  if (ValueType::ATTRIBUTE == condition.right_value_type) {
     right.is_attr                = true;
     const FieldMeta *field_right = table_meta.field(condition.right_attr.attribute_name.c_str());
     if (nullptr == field_right) {
@@ -117,8 +116,7 @@ RC DefaultConditionFilter::init(Table &table, const ConditionSqlNode &condition)
   return init(left, right, type_left, condition.comp);
 }
 
-bool DefaultConditionFilter::filter(const Record &rec) const
-{
+bool DefaultConditionFilter::filter(const Record &rec) const {
   Value left_value;
   Value right_value;
 

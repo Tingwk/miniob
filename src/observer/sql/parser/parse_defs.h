@@ -53,13 +53,23 @@ enum CompOp
   GREAT_THAN,   ///< ">"
   LK,           ///< "like"
   NOT_LK,       ///< "not like"
-  NO_OP
+  IN_,
+  NOT_IN_,
+  EXISTS_,
+  NOT_EXISTS_,
+  NO_OP,
 };
 
 enum class JoinType {
   INNER_JOIN,
   LEFT_OUTER,
   RIGHT_OUTER,
+};
+
+enum class ValueType {
+  ATTRIBUTE,
+  CONSTANT,
+  SUB_QUERY,
 };
 
 /**
@@ -70,21 +80,19 @@ enum class JoinType {
  * 左边和右边理论上都可以是任意的数据，比如是字段（属性，列），也可以是数值常量。
  * 这个结构中记录的仅仅支持字段和值。
  */
+class ParsedSqlNode;
 struct ConditionSqlNode
 {
-  int left_is_attr;              ///< TRUE if left-hand side is an attribute
+  ValueType left_value_type;              ///< TRUE if left-hand side is an attribute
                                  ///< 1时，操作符左边是属性名，0时，是属性值
   Value          left_value;     ///< left-hand side value if left_is_attr = FALSE
   RelAttrSqlNode left_attr;      ///< left-hand side attribute
   CompOp         comp;           ///< comparison operator
-  int            right_is_attr;  ///< TRUE if right-hand side is an attribute
+  ValueType      right_value_type;  ///< TRUE if right-hand side is an attribute
                                  ///< 1时，操作符右边是属性名，0时，是属性值
   RelAttrSqlNode right_attr;     ///< right-hand side attribute if right_is_attr = TRUE 右边的属性
   Value          right_value;    ///< right-hand side value if right_is_attr = FALSE
-  ConditionSqlNode() = default;
-  ConditionSqlNode(const ConditionSqlNode& other):
-  left_is_attr(other.left_is_attr),left_value(other.left_value), left_attr(other.left_attr), comp(other.comp), right_is_attr(other.right_is_attr), 
-   right_attr(other.right_attr),  right_value(other.right_value) {}
+  ParsedSqlNode* right_sub_queries; // if ConditionSqlNode represents a sub_query, sub_query will always on the right-hand side.
 };
 
 struct JoinSqlNode {
@@ -114,7 +122,7 @@ struct OrderBySqlNode {
  * where 条件 conditions，这里表示使用AND串联起来多个条件。正常的SQL语句会有OR，NOT等，
  * 甚至可以包含复杂的表达式。
  */
-
+// #include "sql/expr/expression.h"
 struct SelectSqlNode
 {
   std::vector<std::unique_ptr<Expression>> expressions;  ///< 查询的表达式
@@ -124,6 +132,7 @@ struct SelectSqlNode
   std::vector<OrderBySqlNode>              order_by;
   std::vector<JoinSqlNode>        joins;
 };
+
 
 /**
  * @brief 算术表达式计算的语法树
@@ -337,6 +346,9 @@ public:
 public:
   ParsedSqlNode();
   explicit ParsedSqlNode(SqlCommandFlag flag);
+  // ~ParsedSqlNode() {
+  //   std::cout << "~ParsedSqlNode() was called\n";
+  // }
 };
 
 /**

@@ -15,6 +15,8 @@ See the Mulan PSL v2 for more details. */
 #include "sql/expr/expression.h"
 #include "sql/expr/tuple.h"
 #include "sql/expr/arithmetic_operator.hpp"
+#include "sql/operator/project_physical_operator.h"
+#include "sql/expr/sub_query_physical_expr.h"
 
 using namespace std;
 
@@ -215,8 +217,9 @@ bool ComparisonExpr::isMatch(std::string s, std::string p) const {
 
 RC ComparisonExpr::compare_value(const Value &left, const Value &right, bool &result) const
 {
+  CompOp comp = (comp_ == CompOp::IN_ || comp_ == CompOp::NOT_IN_) ? CompOp::EQUAL_TO : comp_;
   RC  rc         = RC::SUCCESS;
-  if (comp_ == CompOp::LK || comp_ == CompOp::NOT_LK) {
+  if (comp == CompOp::LK || comp == CompOp::NOT_LK) {
     if (left.attr_type() != AttrType::CHARS || right.attr_type() != AttrType::CHARS) {
       LOG_ERROR("operands of like operator must be string");
       return RC::INVALID_ARGUMENT;
@@ -224,14 +227,14 @@ RC ComparisonExpr::compare_value(const Value &left, const Value &right, bool &re
     std::string p(right.get_string());
     std::string s(left.get_string());
     result = isMatch(s, p);
-    if (comp_ == CompOp::NOT_LK) {
+    if (comp == CompOp::NOT_LK) {
       result = !result;
     }
     return rc;
   } 
   int cmp_result = left.compare(right);
   result         = false;
-  switch (comp_) {
+  switch (comp) {
     case EQUAL_TO: {
       result = (0 == cmp_result);
     } break;
@@ -251,7 +254,7 @@ RC ComparisonExpr::compare_value(const Value &left, const Value &right, bool &re
       result = (cmp_result > 0);
     } break;
     default: {
-      LOG_WARN("unsupported comparison. %d", comp_);
+      LOG_WARN("unsupported comparison. %d", comp);
       rc = RC::INTERNAL;
     } break;
   }
@@ -290,10 +293,58 @@ RC ComparisonExpr::get_value(const Tuple &tuple, Value &value) const
     LOG_WARN("failed to get value of left expression. rc=%s", strrc(rc));
     return rc;
   }
-  rc = right_->get_value(tuple, right_value);
-  if (rc != RC::SUCCESS) {
-    LOG_WARN("failed to get value of right expression. rc=%s", strrc(rc));
-    return rc;
+  if (right_->type() == ExprType::SUB_QUERY_PHYSICAL_EXPR) {
+    auto sub_query = static_cast<SubQueryPhysicalExpr*>(right_.get());
+    auto results = sub_query->get_sub_query_results();
+    bool bool_value = false;
+    switch (comp_) {
+      case CompOp::IN_: {
+        for(auto &v : results) {
+          rc = compare_value(left_value, v, bool_value);
+          if (rc == RC::SUCCESS && bool_value) {
+            break;
+          }
+        }
+        value.set_boolean(bool_value);
+        return rc;
+      }break;
+      case CompOp::NOT_IN_: {
+        bool_value = true;
+        for (auto &v : results) {
+          bool in{false};
+          rc = compare_value(left_value, v, in);
+          if (rc == RC::SUCCESS && in) {
+            bool_value = false;
+            break;
+          }
+        }
+        value.set_boolean(bool_value);
+        return rc;
+      }break;
+      case CompOp::EXISTS_: {
+        value.set_boolean(results.size()>0);
+        return RC::SUCCESS;
+      }break;
+      case CompOp::NOT_EXISTS_: {
+        value.set_boolean(results.empty());
+        return RC::SUCCESS;
+      }break;
+      default:
+        if (results.empty()) {
+          value.set_boolean(false);
+          return RC::SUCCESS;
+        } else if (results.size()>1) {
+          return RC::INTERNAL;
+        }
+        right_value = results[0];
+        break;
+      }
+  } else {
+    rc = right_->get_value(tuple, right_value);
+    if (rc != RC::SUCCESS) {
+      LOG_WARN("failed to get value of right expression. rc=%s", strrc(rc));
+      return rc;
+    }
   }
 
   bool bool_value = false;

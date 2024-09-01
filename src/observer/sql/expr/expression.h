@@ -22,6 +22,9 @@ See the Mulan PSL v2 for more details. */
 #include "sql/expr/aggregator.h"
 #include "storage/common/chunk.h"
 
+// #include "sql/operator/logical_operator.h"
+// #include "sql/operator/physical_operator.h"
+// #include "storage/trx/trx.h"
 class Tuple;
 
 /**
@@ -47,6 +50,8 @@ enum class ExprType
   CONJUNCTION,  ///< 多个表达式使用同一种关系(AND或OR)来联结
   ARITHMETIC,   ///< 算术运算
   AGGREGATION,  ///< 聚合运算
+  SUB_QUERY_EXPR,
+  SUB_QUERY_PHYSICAL_EXPR,
 };
 
 /**
@@ -62,6 +67,18 @@ enum class ExprType
  *
  * TODO 区分unbound和bound的表达式
  */
+class StarExpr;
+class UnboundFieldExpr;
+class FieldExpr;
+class ValueExpr;
+class CastExpr;
+class ComparisonExpr;
+class ConjunctionExpr;
+class ArithmeticExpr;
+class UnboundAggregateExpr;
+class AggregateExpr;
+class ErrorExpr;
+static Expression* expression_factory(Expression *expr);
 class Expression {
 public:
   Expression()          = default;
@@ -137,6 +154,7 @@ private:
 class StarExpr : public Expression {
 public:
   StarExpr() : table_name_() {}
+  StarExpr(const StarExpr& other) : table_name_(other.table_name_) {}
   StarExpr(const char *table_name) : table_name_(table_name) {}
   virtual ~StarExpr() = default;
 
@@ -156,7 +174,7 @@ public:
   UnboundFieldExpr(const std::string &table_name, const std::string &field_name)
       : table_name_(table_name), field_name_(field_name)
   {}
-
+  UnboundFieldExpr(const UnboundFieldExpr& other) :table_name_(other.table_name_), field_name_(other.field_name_) {}
   virtual ~UnboundFieldExpr() = default;
 
   ExprType type() const override { return ExprType::UNBOUND_FIELD; }
@@ -181,7 +199,7 @@ public:
   FieldExpr() = default;
   FieldExpr(const Table *table, const FieldMeta *field) : field_(table, field) {}
   FieldExpr(const Field &field) : field_(field) {}
-
+  FieldExpr(const FieldExpr& other): field_(other.field_) {}
   virtual ~FieldExpr() = default;
 
   bool equal(const Expression &other) const override;
@@ -216,7 +234,7 @@ class ValueExpr : public Expression {
 public:
   ValueExpr() = default;
   explicit ValueExpr(const Value &value) : value_(value) {}
-
+  ValueExpr(const ValueExpr& other):value_(other.value_) {}
   virtual ~ValueExpr() = default;
 
   bool equal(const Expression &other) const override;
@@ -247,6 +265,7 @@ private:
 class CastExpr : public Expression {
 public:
   CastExpr(std::unique_ptr<Expression> child, AttrType cast_type);
+  CastExpr(const CastExpr& other) : child_(), cast_type_(other.cast_type_){}
   virtual ~CastExpr();
 
   ExprType type() const override { return ExprType::CAST; }
@@ -275,7 +294,10 @@ class ComparisonExpr : public Expression {
 public:
   ComparisonExpr(CompOp comp, std::unique_ptr<Expression> left, std::unique_ptr<Expression> right);
   virtual ~ComparisonExpr();
-
+  ComparisonExpr(const ComparisonExpr& other): comp_(other.comp_){
+    left_.reset(expression_factory(other.left_.get()));
+    right_.reset(expression_factory(other.right_.get()));
+  }
   ExprType type() const override { return ExprType::COMPARISON; }
   RC       get_value(const Tuple &tuple, Value &value) const override;
   AttrType value_type() const override { return AttrType::BOOLEANS; }
@@ -329,7 +351,12 @@ public:
 public:
   ConjunctionExpr(Type type, std::vector<std::unique_ptr<Expression>> &children);
   virtual ~ConjunctionExpr() = default;
-
+  ConjunctionExpr (const ConjunctionExpr& other) :conjunction_type_(other.conjunction_type_) {
+    children_.resize(other.children_.size());
+    for (size_t i = 0; i < other.children_.size(); i++) {
+      children_[i].reset(expression_factory(other.children_[i].get()));
+    }
+  }
   ExprType type() const override { return ExprType::CONJUNCTION; }
   AttrType value_type() const override { return AttrType::BOOLEANS; }
   RC       get_value(const Tuple &tuple, Value &value) const override;
@@ -361,6 +388,10 @@ public:
 public:
   ArithmeticExpr(Type type, Expression *left, Expression *right);
   ArithmeticExpr(Type type, std::unique_ptr<Expression> left, std::unique_ptr<Expression> right);
+  ArithmeticExpr(const ArithmeticExpr& other): arithmetic_type_(other.arithmetic_type_) {
+    left_.reset(expression_factory(other.left_.get()));
+    right_.reset(expression_factory(other.right_.get()));
+  }
   virtual ~ArithmeticExpr() = default;
 
   bool     equal(const Expression &other) const override;
@@ -403,6 +434,7 @@ private:
 class UnboundAggregateExpr : public Expression {
 public:
   UnboundAggregateExpr(const char *aggregate_name, Expression *child);
+  UnboundAggregateExpr(const UnboundAggregateExpr& other) : aggregate_name_(other.aggregate_name_), child_(expression_factory(other.child_.get())) {}
   virtual ~UnboundAggregateExpr() = default;
 
   ExprType type() const override { return ExprType::UNBOUND_AGGREGATION; }
@@ -433,6 +465,7 @@ public:
 public:
   AggregateExpr(Type type, Expression *child);
   AggregateExpr(Type type, std::unique_ptr<Expression> child);
+  AggregateExpr(const AggregateExpr& other):aggregate_type_(other.aggregate_type_), child_(expression_factory(other.child_.get())) {}
   virtual ~AggregateExpr() = default;
 
   bool equal(const Expression &other) const override;
@@ -464,7 +497,93 @@ private:
 
 class ErrorExpr : public Expression {
 public:
+  ErrorExpr() = default;
   RC get_value(const Tuple &tuple, Value &value) const override { return RC::INVALID_ARGUMENT;}
   AttrType value_type() const override { return AttrType::UNDEFINED; }
   ExprType type() const override { return ExprType::ERROR_EXPR; }
 };
+
+// class SubQueryLogicalExpr : public Expression {
+//  public:
+//   SubQueryLogicalExpr() = default;
+// //  SubQueryLogicalExpr(const SubQueryLogicalExpr& other): sub_query_(expression_factory(other.sub_query_.get())) {}
+//   SubQueryLogicalExpr(std::unique_ptr<LogicalOperator>&& oper) : sub_query_(std::move(oper)) {}
+//   virtual ~SubQueryLogicalExpr() = default;
+//   RC get_value(const Tuple &tuple, Value &value) const override { return RC::INVALID_ARGUMENT;}
+//   AttrType value_type() const override { return AttrType::UNDEFINED; }
+//   ExprType type() const override { return ExprType::SUB_QUERY_EXPR; }
+//   bool with_table_name() const {return with_table_name_;}
+//   void set_with_table_name(bool f) {with_table_name_ = f;}
+//   std::unique_ptr<LogicalOperator>& sub_query()  { return sub_query_;}
+//  private:
+//   std::unique_ptr<LogicalOperator> sub_query_;
+//   bool with_table_name_ = false;
+// };
+
+// class SubQueryPhysicalExpr : public Expression {
+//  public:
+//   SubQueryPhysicalExpr() = default;
+//   virtual ~SubQueryPhysicalExpr() = default;
+//   SubQueryPhysicalExpr(std::unique_ptr<PhysicalOperator>&& other) : physical_oper_(std::move(other)) {}
+//   RC get_value(const Tuple &tuple, Value &value) const override { return RC::INVALID_ARGUMENT;}
+//   AttrType value_type() const override { return AttrType::UNDEFINED; }
+//   ExprType type() const override { return ExprType::SUB_QUERY_PHYSICAL_EXPR; }
+//   std::unique_ptr<PhysicalOperator>& physical_operator() { return physical_oper_; }
+//   Trx* current_trx() { return trx_; }
+//  private:
+//   std::unique_ptr<PhysicalOperator> physical_oper_;
+//   Trx* trx_;
+// };
+
+static Expression* expression_factory(Expression *expr) {
+    switch (expr->type()) {
+      case ExprType::CAST: {
+        auto cast_expr = static_cast<CastExpr*>(expr);
+        return new CastExpr(*cast_expr);
+      }break;
+      case ExprType::STAR: {
+        auto star_expr = static_cast<StarExpr*>(expr);
+        return new StarExpr(*star_expr);
+      }break;
+      case ExprType::FIELD: {
+        auto field_expr = static_cast<FieldExpr*>(expr);
+        return new FieldExpr(*field_expr);
+      }break;
+      case ExprType::UNBOUND_FIELD: {
+        auto unbound_field_expr = static_cast<UnboundFieldExpr*>(expr);
+        return new UnboundFieldExpr(*unbound_field_expr);
+      }break;
+      case ExprType::VALUE: {
+        auto value_expr = static_cast<ValueExpr*>(expr);
+        return new ValueExpr(*value_expr);
+      }break;
+      case ExprType::COMPARISON: {
+        auto comp_expr = static_cast<ComparisonExpr*>(expr);
+        return new ComparisonExpr(*comp_expr);
+      }break;
+      case ExprType::CONJUNCTION: {
+        auto conj_expr = static_cast<ConjunctionExpr*>(expr);
+        return new ConjunctionExpr(*conj_expr);
+      }break;
+      case ExprType::ARITHMETIC: {
+        auto arith_expr = static_cast<ArithmeticExpr*>(expr);
+        return new ArithmeticExpr(*arith_expr);
+      }break;
+      case ExprType::UNBOUND_AGGREGATION: {
+        auto unbound_aggr_expr = static_cast<UnboundAggregateExpr*>(expr);
+        return new UnboundAggregateExpr(*unbound_aggr_expr);
+      }break;
+      case ExprType::AGGREGATION: {
+        auto aggr_expr = static_cast<AggregateExpr*>(expr);
+        return new AggregateExpr(*aggr_expr);
+      }break;
+      case ExprType::ERROR_EXPR: {
+        return new ErrorExpr;
+      }break;
+      
+      default: {
+        ASSERT(false, "UNREACHABLE");
+      }break;
+    }
+    return nullptr;
+  } 

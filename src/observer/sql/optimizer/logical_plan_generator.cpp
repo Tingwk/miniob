@@ -39,6 +39,8 @@ See the Mulan PSL v2 for more details. */
 #include "sql/stmt/order_by_stmt.h"
 #include "sql/stmt/update_stmt.h"
 #include "sql/expr/expression_iterator.h"
+#include "sql/expr/sub_query_logical_expr.h"
+#include "sql/expr/sub_query_physical_expr.h"
 
 using namespace std;
 using namespace common;
@@ -121,15 +123,29 @@ RC LogicalPlanGenerator::create_plan(SelectStmt *select_stmt, unique_ptr<Logical
     std::vector<std::unique_ptr<Expression>> predicates;
     for (size_t i = 0; i < filter_units.size(); i++) {
       auto unit = filter_units[i];
-      if (unit->left().is_attr && unit->left().field.table() == table && !unit->right().is_attr) {
+      if (unit->left().value_type == ValueType::ATTRIBUTE && unit->left().field.table() == table && unit->right().value_type == ValueType::CONSTANT) {
         std::unique_ptr<FieldExpr> left(new FieldExpr(unit->left().field));
         std::unique_ptr<ValueExpr> right(new ValueExpr(unit->right().value));
         std::unique_ptr<ComparisonExpr> cmp_expr (new ComparisonExpr(unit->comp(), std::move(left), std::move(right)));
         predicates.emplace_back(std::move(cmp_expr));
         select_stmt->filter_stmt()->set_flag(i, false);
-      } else if (unit->right().is_attr && unit->right().field.table() == table && !unit->left().is_attr) {
+      } else if (unit->right().value_type == ValueType::ATTRIBUTE && unit->right().field.table() == table && unit->left().value_type == ValueType::CONSTANT) {
         std::unique_ptr<ValueExpr> left (new ValueExpr(unit->left().value));
         std::unique_ptr<FieldExpr> right(new FieldExpr(unit->right().field));
+        std::unique_ptr<ComparisonExpr> cmp_expr (new ComparisonExpr(unit->comp(), std::move(left), std::move(right)));
+        predicates.emplace_back(std::move(cmp_expr));
+        select_stmt->filter_stmt()->set_flag(i, false);
+      } else  if (unit->left().value_type == ValueType::ATTRIBUTE && unit->left().field.table() == table && unit->right().value_type == ValueType::SUB_QUERY) {
+        std::unique_ptr<FieldExpr> left(new FieldExpr(unit->left().field));
+        std::unique_ptr<LogicalOperator> sub_query_logical_oper;
+        [[maybe_unused]]auto sub_selete_stmt = static_cast<SelectStmt*>(unit->right().sub_query);
+        auto rc = create_plan(sub_selete_stmt, sub_query_logical_oper);
+        if (rc != RC::SUCCESS) {
+          LOG_WARN("cannont create sub query");
+          return rc;
+        }
+        std::unique_ptr<SubQueryLogicalExpr> right(new SubQueryLogicalExpr(std::move(sub_query_logical_oper)));
+        right->set_with_table_name(sub_selete_stmt->tables().size() > 1);
         std::unique_ptr<ComparisonExpr> cmp_expr (new ComparisonExpr(unit->comp(), std::move(left), std::move(right)));
         predicates.emplace_back(std::move(cmp_expr));
         select_stmt->filter_stmt()->set_flag(i, false);
@@ -210,8 +226,23 @@ RC LogicalPlanGenerator::create_plan(SelectStmt *select_stmt, unique_ptr<Logical
 
 RC LogicalPlanGenerator::create_plan(FilterStmt *filter_stmt, unique_ptr<LogicalOperator> &logical_operator) {
   std::vector<unique_ptr<Expression>> cmp_exprs;
+  std::vector<FilterUnit*> sub_queries;
+  filter_stmt->filter_sub_queries(sub_queries);
   filter_stmt->filter_expression(cmp_exprs);
-
+  for(auto unit : sub_queries) {
+    std::unique_ptr<LogicalOperator> sub_query;
+    auto select_stmt = static_cast<SelectStmt*>(unit->right().sub_query);
+    auto rc = create_plan(select_stmt, sub_query);
+    if (rc != RC::SUCCESS) {
+      LOG_WARN("cannot create sub_query");
+      return rc;
+    }
+    std::unique_ptr<FieldExpr> left(new FieldExpr(unit->left().field));
+    std::unique_ptr<SubQueryLogicalExpr> right(new SubQueryLogicalExpr(std::move(sub_query)));
+    right->set_with_table_name(select_stmt->tables().size() > 1);
+    auto cmp_expr = new ComparisonExpr(unit->comp(), std::move(left), std::move(right));
+    cmp_exprs.emplace_back(cmp_expr);
+  }
   unique_ptr<PredicateLogicalOperator> predicate_oper;
   if (!cmp_exprs.empty()) {
     unique_ptr<ConjunctionExpr> conjunction_expr(new ConjunctionExpr(ConjunctionExpr::Type::AND, cmp_exprs));

@@ -13,6 +13,7 @@ See the Mulan PSL v2 for more details. */
 //
 
 #include "sql/stmt/filter_stmt.h"
+#include "sql/stmt/select_stmt.h"
 #include "common/lang/string.h"
 #include "common/log/log.h"
 #include "common/rc.h"
@@ -35,17 +36,29 @@ RC FilterStmt::filter_expression(std::vector<std::unique_ptr<Expression>>& cmp_e
     auto unit = filter_units_[k];
     const FilterObj& left_obj = unit->left();
     const FilterObj& right_obj = unit->right();
-    std::unique_ptr<Expression> left(left_obj.is_attr ? static_cast<Expression*>(new FieldExpr(left_obj.field)) : static_cast<Expression*>(new ValueExpr(left_obj.value)));
-    std::unique_ptr<Expression> right(right_obj.is_attr ? static_cast<Expression*>(new FieldExpr(right_obj.field)) : static_cast<Expression*>(new ValueExpr(right_obj.value)));
+    std::unique_ptr<Expression> left(left_obj.value_type == ValueType::ATTRIBUTE ? (static_cast<Expression*>(new FieldExpr(left_obj.field))) : static_cast<Expression*>(new ValueExpr(left_obj.value)));
+    std::unique_ptr<Expression> right(right_obj.value_type == ValueType::ATTRIBUTE ? (static_cast<Expression*>(new FieldExpr(right_obj.field))) : static_cast<Expression*>(new ValueExpr(right_obj.value)));
     auto cmp_expr = new ComparisonExpr(unit->comp(), std::move(left), std::move(right));
     cmp_exprs.emplace_back(cmp_expr);
   }
   return RC::SUCCESS;
 }
 
-RC FilterStmt::create(Db *db, Table *default_table, std::unordered_map<std::string, Table *> *tables,
-    const ConditionSqlNode *conditions, int condition_num, FilterStmt *&stmt)
-{
+RC FilterStmt::filter_sub_queries(std::vector<FilterUnit*>& vec_querys) {
+  for (size_t i = 0; i < filter_units_.size(); i++) {
+    if (!filter_flags_[i])
+      continue;
+    auto unit = filter_units_[i];
+    if (unit->left().value_type == ValueType::ATTRIBUTE && unit->right().value_type == ValueType::SUB_QUERY) {
+       vec_querys.emplace_back(unit);
+       filter_flags_[i] = false;
+    }
+  }
+  return RC::SUCCESS;
+}
+
+RC FilterStmt::create(Db *db, Table *default_table, const std::unordered_map<std::string, Table *> *tables,
+    ConditionSqlNode *conditions, int condition_num, FilterStmt *&stmt) {
   RC rc = RC::SUCCESS;
   stmt  = nullptr;
 
@@ -68,9 +81,8 @@ RC FilterStmt::create(Db *db, Table *default_table, std::unordered_map<std::stri
   return rc;
 }
 
-RC get_table_and_field(Db *db, Table *default_table, std::unordered_map<std::string, Table *> *tables,
-    const RelAttrSqlNode &attr, Table *&table, const FieldMeta *&field)
-{
+RC get_table_and_field(Db *db, Table *default_table, const std::unordered_map<std::string, Table *> *tables,
+    const RelAttrSqlNode &attr, Table *&table, const FieldMeta *&field) {
   if (common::is_blank(attr.relation_name.c_str())) {
     table = default_table;
   } else if (nullptr != tables) {
@@ -96,8 +108,8 @@ RC get_table_and_field(Db *db, Table *default_table, std::unordered_map<std::str
   return RC::SUCCESS;
 }
 
-RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_map<std::string, Table *> *tables,
-    const ConditionSqlNode &condition, FilterUnit *&filter_unit)
+RC FilterStmt::create_filter_unit(Db *db, Table *default_table, const std::unordered_map<std::string, Table *> *tables,
+     ConditionSqlNode &condition, FilterUnit *&filter_unit)
 {
   RC rc = RC::SUCCESS;
 
@@ -109,7 +121,7 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
 
   filter_unit = new FilterUnit;
 
-  if (condition.left_is_attr) {
+  if (condition.left_value_type == ValueType::ATTRIBUTE) {
     Table           *table = nullptr;
     const FieldMeta *field = nullptr;
     rc                     = get_table_and_field(db, default_table, tables, condition.left_attr, table, field);
@@ -122,7 +134,7 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
     filter_unit->set_left(filter_obj);
   }
 
-  if (condition.right_is_attr) {
+  if (condition.right_value_type == ValueType::ATTRIBUTE) {
     Table           *table = nullptr;
     const FieldMeta *field = nullptr;
     rc                     = get_table_and_field(db, default_table, tables, condition.right_attr, table, field);
@@ -133,9 +145,9 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
     FilterObj filter_obj;
     filter_obj.init_attr(Field(table, field));
     filter_unit->set_right(filter_obj);
-  } else {
+  } else if (condition.right_value_type == ValueType::CONSTANT) {
     FilterObj filter_obj;
-    if (condition.left_is_attr && filter_unit->left().field.attr_type() == AttrType::DATES) {
+    if (condition.left_value_type == ValueType::ATTRIBUTE && filter_unit->left().field.attr_type() == AttrType::DATES) {
       ASSERT(condition.right_value.attr_type() == AttrType::CHARS, "value type must be chars");
       auto date_str = condition.right_value.get_string();
       int date_val;
@@ -149,11 +161,23 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
       filter_obj.init_value(condition.right_value);
     }
     filter_unit->set_right(filter_obj);
+  } else {
+    assert(condition.left_value_type == ValueType::ATTRIBUTE);
+    Stmt * select_stmt;
+    rc = SelectStmt::create(db, (condition.right_sub_queries->selection), select_stmt);
+    if (rc !=  RC::SUCCESS || (static_cast<SelectStmt*>(select_stmt))->query_expressions().size() > 1) {
+      rc = RC::INTERNAL;
+      LOG_WARN("cannot create sub query");
+      return rc;
+    }
+    FilterObj obj;
+    obj.init_sub_query(select_stmt);
+    filter_unit->set_right(obj);
   }
 
-  if (!condition.left_is_attr) {
+  if (ValueType::CONSTANT == condition.left_value_type) {
     FilterObj filter_obj;
-    if (condition.right_is_attr && filter_unit->right().field.attr_type() == AttrType::DATES) {
+    if (condition.right_value_type == ValueType::ATTRIBUTE && filter_unit->right().field.attr_type() == AttrType::DATES) {
       ASSERT(condition.left_value.attr_type() == AttrType::CHARS, "value type must be chars");
       auto date_str = condition.left_value.get_string();
       int date_val;
@@ -167,6 +191,8 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
       filter_obj.init_value(condition.left_value);
     }
     filter_unit->set_left(filter_obj);
+  } else {
+    ASSERT(false, "UNREACHABLE");
   }
 
   filter_unit->set_comp(comp);

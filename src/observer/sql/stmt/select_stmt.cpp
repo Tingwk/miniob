@@ -71,7 +71,7 @@ RC SelectStmt::create(Db *db, SelectSqlNode &select_sql, Stmt *&stmt)
   ExpressionBinder expression_binder(binder_context);
   int i = 0;
   std::vector<int> aggregation_indices;
-  for (std::unique_ptr<Expression> &expression : select_sql.expressions) {
+  for (auto &expression : select_sql.expressions) {
     if (expression->type() == ExprType::ERROR_EXPR) {
       return RC::INTERNAL;
     }
@@ -134,7 +134,7 @@ RC SelectStmt::create(Db *db, SelectSqlNode &select_sql, Stmt *&stmt)
   for (size_t k = 0; k < select_sql.joins.size(); k++) {
     std::vector<ConditionSqlNode> useful_conditions;
     for (auto &cond : select_sql.joins[k].conditions) {
-      if (cond.left_is_attr && cond.right_is_attr) {
+      if (cond.left_value_type == ValueType::ATTRIBUTE && cond.right_value_type == ValueType::ATTRIBUTE) {
         if (rc = field_validation_check(db, cond.left_attr); rc != RC::SUCCESS) {
           return rc;
         }
@@ -144,9 +144,9 @@ RC SelectStmt::create(Db *db, SelectSqlNode &select_sql, Stmt *&stmt)
         name_to_table.insert({cond.left_attr.relation_name, db->find_table(cond.left_attr.relation_name.c_str())});
         name_to_table.insert({cond.right_attr.relation_name, db->find_table(cond.right_attr.relation_name.c_str())});
         useful_conditions.push_back(cond);
-      } else if ((cond.left_is_attr && !cond.right_is_attr) || (cond.right_is_attr && !cond.left_is_attr)) {
+      } else if ((cond.left_value_type == ValueType::ATTRIBUTE && cond.right_value_type  == ValueType::CONSTANT) || (cond.right_value_type  == ValueType::ATTRIBUTE && cond.left_value_type  == ValueType::CONSTANT)) {
         select_sql.conditions.push_back(cond);
-      } else {
+      } else if ((cond.left_value_type == ValueType::CONSTANT && cond.right_value_type  == ValueType::CONSTANT) || (cond.right_value_type  == ValueType::CONSTANT && cond.left_value_type  == ValueType::CONSTANT)) {
         useful_conditions.push_back(cond);
       }
     }

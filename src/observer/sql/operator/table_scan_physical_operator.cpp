@@ -15,6 +15,7 @@ See the Mulan PSL v2 for more details. */
 #include "sql/operator/table_scan_physical_operator.h"
 #include "event/sql_debug.h"
 #include "storage/table/table.h"
+#include "sql/expr/sub_query_physical_expr.h"
 
 using namespace std;
 
@@ -27,6 +28,19 @@ RC TableScanPhysicalOperator::open(Trx *trx) {
     }
   }
   trx_ = trx;
+  for(auto &expr : predicates_) {
+    if (expr->type() == ExprType::COMPARISON) {
+      auto cmp_expr = static_cast<ComparisonExpr*>(expr.get());
+      if (cmp_expr->right()->type() == ExprType::SUB_QUERY_PHYSICAL_EXPR) {
+        auto right = static_cast<SubQueryPhysicalExpr*>(cmp_expr->right().get());
+        right->do_sub_query(trx);
+        bool flag = cmp_expr->comp() != CompOp::EXISTS_ && cmp_expr->comp() != CompOp::NOT_EXISTS_ && cmp_expr->comp() != CompOp::IN_ && cmp_expr->comp() != CompOp::NOT_IN_;
+        if (flag && right->reuslt_num() > 1) {
+          return RC::INTERNAL;
+        }
+      }
+    }
+  }
   return rc;
 }
 
