@@ -122,7 +122,8 @@ RC SelectStmt::create(Db *db, SelectSqlNode &select_sql, Stmt *&stmt)
       }
     }
   }
-  if (valid_count != gropy_columns.size()) {
+  if (valid_count > 0 && valid_count != gropy_columns.size()) {
+    // valid_count > 0 means select expressions contain column(s).
     // The result of query `select id1, count(*) from table group by a,b` means nothing;
     return RC::INTERNAL;
   }

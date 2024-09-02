@@ -1005,6 +1005,22 @@ condition:
       $$->comp = $2;
       delete $3;
     }
+    | null IS null {
+      $$ = new ConditionSqlNode;
+      $$->right_value_type = ValueType::CONSTANT;
+      $$->left_value_type = ValueType::CONSTANT;
+      $$->left_value.set_int(0);
+      $$->right_value.set_int(0);
+      $$->comp = EQUAL_TO;
+    }
+    | null IS NOT null {
+      $$ = new ConditionSqlNode;
+      $$->right_value_type = ValueType::CONSTANT;
+      $$->left_value_type = ValueType::CONSTANT;
+      $$->left_value.set_int(0);
+      $$->right_value.set_int(1);
+      $$->comp = EQUAL_TO;
+    }
    
     ;
 
