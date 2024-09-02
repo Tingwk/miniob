@@ -186,6 +186,7 @@ struct UpdateSqlNode
 struct AttrInfoSqlNode
 {
   AttrType    type;    ///< Type of attribute
+  bool nullable;
   std::string name;    ///< Attribute name
   size_t      length;  ///< Length of attribute
 };

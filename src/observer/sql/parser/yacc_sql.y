@@ -124,6 +124,7 @@ UnboundAggregateExpr *create_aggregate_expression(const char *aggregate_name,
         ROUND
         LENGTH
         DATA_FORMAT
+        null
 
 /** union 中定义各种数据类型，真实生成的代码也是union类型，所以不能有非POD类型的数据 **/
 %union {
@@ -145,6 +146,7 @@ UnboundAggregateExpr *create_aggregate_expression(const char *aggregate_name,
   RelListSqlNode*                            relation_list;
   char *                                     string;
   int                                        number;
+  int *                                      number_ptr;
   float                                      floats;
 }
 
@@ -165,6 +167,7 @@ UnboundAggregateExpr *create_aggregate_expression(const char *aggregate_name,
 %type <rel_attr>            rel_attr
 %type <attr_infos>          attr_def_list
 %type <attr_info>           attr_def
+%type <number_ptr>          null_def
 %type <value_list>          value_list
 %type <condition_list>      where
 %type <order_by_list>       order_by
@@ -391,23 +394,46 @@ attr_def_list:
     ;
     
 attr_def:
-    ID type LBRACE number RBRACE 
+    ID type LBRACE number RBRACE null_def
     {
       $$ = new AttrInfoSqlNode;
       $$->type = (AttrType)$2;
       $$->name = $1;
       $$->length = $4;
+      if ($6 != nullptr) {
+        $$->nullable = (*$6 == 0);
+        delete $6;
+      } else {
+        $$->nullable = false;
+      }
       free($1);
     }
-    | ID type
+    | ID type null_def
     {
       $$ = new AttrInfoSqlNode;
       $$->type = (AttrType)$2;
       $$->name = $1;
       $$->length = 4;
+      if ($3 != nullptr) {
+        $$->nullable = (*$3 == 0);
+        delete $3;
+      } else {
+        $$->nullable = false;
+      }
       free($1);
     }
     ;
+null_def:
+    /* empty */
+    {
+      $$ = nullptr;
+    }
+    | null {
+      $$ = new int(0);
+    }
+    | NOT null {
+      $$ = new int(1);
+    }
 number:
     NUMBER {$$ = $1;}
     ;

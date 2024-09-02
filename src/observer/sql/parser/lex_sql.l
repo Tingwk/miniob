@@ -92,6 +92,7 @@ LENGTH                                  RETURN_TOKEN(LENGTH);
 ROUND                                   RETURN_TOKEN(ROUND);
 DATA_FORMAT                             RETURN_TOKEN(DATA_FORMAT);
 UNIQUE                                  RETURN_TOKEN(UNIQUE);
+null                                    RETURN_TOKEN(null);
 TABLES                                  RETURN_TOKEN(TABLES);
 INDEX                                   RETURN_TOKEN(INDEX);
 ON                                      RETURN_TOKEN(ON);
