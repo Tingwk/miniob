@@ -50,6 +50,10 @@ struct FilterObj
     this->values = ptr;
     value_type = ValueType::VALUE_LIST;
   }
+  void init_null(const Value v) {
+    this->value = v;
+    value_type = ValueType::NULL_TYPE;
+  }
 };
 
 class FilterUnit

@@ -207,7 +207,7 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, const std::unord
       Value v;
       v.set_null();
       FilterObj obj;
-      obj.init_value(v);
+      obj.init_null(v);
       filter_unit->set_right(obj);
     }break;
     default:

@@ -362,7 +362,11 @@ RC ComparisonExpr::get_value(const Tuple &tuple, Value &value) const
       return rc;
     }
   }
-
+  // i.e. 4 <> null-> false 5 > false -> false.
+  if (left_value.attr_type() == AttrType::NULLS || right_value.attr_type() == AttrType::NULLS) {
+    value.set_boolean(false);
+    return RC::SUCCESS;
+  }
   bool bool_value = false;
 
   rc = compare_value(left_value, right_value, bool_value);
