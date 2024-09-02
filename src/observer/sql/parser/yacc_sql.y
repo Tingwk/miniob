@@ -161,6 +161,7 @@ UnboundAggregateExpr *create_aggregate_expression(const char *aggregate_name,
 %type <number>              type
 %type <condition>           condition
 %type <value>               value
+%type <value>               value_with_null
 %type <id_list_type>        id_list
 %type <number>              number
 // %type <string>              relation
@@ -170,6 +171,7 @@ UnboundAggregateExpr *create_aggregate_expression(const char *aggregate_name,
 %type <attr_info>           attr_def
 %type <number_ptr>          null_def
 %type <value_list>          value_list
+%type <value_list>          value_with_null_list
 %type <condition_list>      where
 %type <order_by_list>       order_by
 %type <order_by_list>       order_list
@@ -445,7 +447,7 @@ type:
     | DATE_T { $$ = static_cast<int>(AttrType::DATES); }
     ;
 insert_stmt:        /*insert   语句的语法解析树*/
-    INSERT INTO ID VALUES LBRACE value value_list RBRACE 
+    INSERT INTO ID VALUES LBRACE value_with_null value_with_null_list RBRACE 
     {
       $$ = new ParsedSqlNode(SCF_INSERT);
       $$->insertion.relation_name = $3;
@@ -459,6 +461,29 @@ insert_stmt:        /*insert   语句的语法解析树*/
       free($3);
     }
     ;
+value_with_null_list:
+  /* empty */
+  {
+    $$ = nullptr;
+  }
+  | COMMA value_with_null value_with_null_list  { 
+    if ($3 != nullptr) {
+      $$ = $3;
+    } else {
+      $$ = new std::vector<Value>;
+    }
+    $$->emplace_back(*$2);
+    delete $2;
+  };
+value_with_null:
+  value  {
+    $$ = $1;
+  }
+  | null {
+    $$ = new Value();
+    $$->set_null();
+  }
+  ;
 
 value_list:
     /* empty */

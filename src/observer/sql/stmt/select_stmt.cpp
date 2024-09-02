@@ -83,7 +83,6 @@ RC SelectStmt::create(Db *db, SelectSqlNode &select_sql, Stmt *&stmt)
     if (bound_expressions[i]->type() == ExprType::AGGREGATION) {
       has_aggregation = true;
       aggregation_indices.push_back(i);
-      
     }
     ++i;
   }
@@ -109,7 +108,7 @@ RC SelectStmt::create(Db *db, SelectSqlNode &select_sql, Stmt *&stmt)
   size_t valid_count{0};
   if (has_aggregation) {
     for (std::unique_ptr<Expression>& expr: bound_expressions) {
-      if (expr->type() == ExprType::FIELD && has_aggregation) {
+      if (expr->type() == ExprType::FIELD) {
         if (group_by_expressions.empty()) {
           // i.e. select id,count(id) from table;
           return RC::INTERNAL;
