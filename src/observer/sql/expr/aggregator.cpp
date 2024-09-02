@@ -47,6 +47,9 @@ RC SumAggregator::evaluate(Value& result)
 }
 
 RC CountAggregator::accumulate(const Value & value) {
+  if (value.attr_type() == AttrType::NULLS) {
+    return RC::SUCCESS;
+  }
   if (value.attr_type() == AttrType::UNDEFINED) {
     value_.set_int(1);
     return RC::SUCCESS;
