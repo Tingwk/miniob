@@ -28,6 +28,7 @@ RC try_to_get_bool_constant(std::unique_ptr<Expression> &expr, bool &constant_va
 RC ConjunctionSimplificationRule::rewrite(std::unique_ptr<Expression> &expr, bool &change_made)
 {
   RC rc = RC::SUCCESS;
+  return rc;
   if (expr->type() != ExprType::CONJUNCTION) {
     return rc;
   }

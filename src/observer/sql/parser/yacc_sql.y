@@ -935,6 +935,22 @@ condition:
       $$->comp = IS_NOT_NULL_;
       delete $1;
     }
+    | value IS null {
+      $$ = new ConditionSqlNode;
+      $$->left_value_type = ValueType::CONSTANT;
+      $$->left_value = *$1;
+      $$->right_value_type = ValueType::NULL_TYPE;
+      $$->comp = IS_NULL_;
+      delete $1;
+    }
+    | value IS NOT null {
+      $$ = new ConditionSqlNode;
+      $$->left_value_type = ValueType::CONSTANT;
+      $$->left_value = *$1;
+      $$->right_value_type = ValueType::NULL_TYPE;
+      $$->comp = IS_NOT_NULL_;
+      delete $1;
+    }
     ;
 
 comp_op:
