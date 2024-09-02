@@ -21,13 +21,14 @@ See the Mulan PSL v2 for more details. */
 
 const static Json::StaticString FIELD_NAME("name");
 const static Json::StaticString FIELD_FIELD_NAME("field_name");
+const static Json::StaticString UNIQUE_INDEX("unique");
 
-RC IndexMeta::init(const char *name, std::vector<const FieldMeta *>& metas) {
+RC IndexMeta::init(const char *name, std::vector<const FieldMeta *>& metas, bool unique) {
   if (common::is_blank(name)) {
     LOG_ERROR("Failed to init index, name is empty.");
     return RC::INVALID_ARGUMENT;
   }
-
+  unique_ = unique_;
   name_  = name;
   for (auto meta : metas) {
    fields_.emplace_back(meta->name()); 
@@ -35,9 +36,9 @@ RC IndexMeta::init(const char *name, std::vector<const FieldMeta *>& metas) {
   return RC::SUCCESS;
 }
 
-void IndexMeta::to_json(Json::Value &json_value) const
-{
+void IndexMeta::to_json(Json::Value &json_value) const {
   json_value[FIELD_NAME]       = name_;
+  json_value[UNIQUE_INDEX] = unique_ ? "true" : "false";
   Json::Value val;
   for(auto field : fields_) {
     Json::Value v(field);
@@ -49,11 +50,15 @@ void IndexMeta::to_json(Json::Value &json_value) const
 RC IndexMeta::from_json(const TableMeta &table, const Json::Value &json_value, IndexMeta &index) {
   const Json::Value &name_value  = json_value[FIELD_NAME];
   const Json::Value &fields_value = json_value[FIELD_FIELD_NAME];
+  const Json::Value &unique = json_value[UNIQUE_INDEX];
   if (!name_value.isString()) {
     LOG_ERROR("Index name is not a string. json value=%s", name_value.toStyledString().c_str());
     return RC::INTERNAL;
   }
-
+  if (!unique.isString()) {
+    LOG_ERROR("unique index is not a string. json value=%s", unique.toStyledString().c_str());
+    return RC::INTERNAL;
+  }
   if (!fields_value.isArray() || fields_value.size() <= 0) {
     LOG_ERROR("Invalid table meta. fields is not array, json value=%s", fields_value.toStyledString().c_str());
     return RC::INDEX_FIELD_ERROR;
@@ -70,8 +75,8 @@ RC IndexMeta::from_json(const TableMeta &table, const Json::Value &json_value, I
     }
     fields.emplace_back(field);
   }
-
-  return index.init(name_value.asCString(), fields);
+  bool unique_index = (0 == strcmp(unique.asCString(), "true")); 
+  return index.init(name_value.asCString(), fields, unique_index);
 }
 
 const char *IndexMeta::name() const { return name_.c_str(); }

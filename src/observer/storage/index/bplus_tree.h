@@ -106,16 +106,19 @@ private:
  */
 class KeyComparator {
 public:
-  void init(std::vector<AttrType>& types, std::vector<pair<int,int>>& off_sizes, int length) { attr_comparator_.init(types, off_sizes, length); }
+  void init(std::vector<AttrType>& types, std::vector<pair<int,int>>& off_sizes, int length, bool unique_index) { 
+    attr_comparator_.init(types, off_sizes, length); 
+    unique_index_ = unique_index;
+  }
 
   const AttrComparator &attr_comparator() const { return attr_comparator_; }
 
   int operator()(const char *v1, const char *v2) const {
     int result = attr_comparator_(v1, v2);
-    if (result != 0) {
+    if (unique_index_ || result != 0) {
       return result;
     }
-
+    
     const RID *rid1 = (const RID *)(v1 + attr_comparator_.attr_length());
     const RID *rid2 = (const RID *)(v2 + attr_comparator_.attr_length());
     return RID::compare(rid1, rid2);
@@ -123,6 +126,7 @@ public:
 
 private:
   AttrComparator attr_comparator_;
+  bool unique_index_;
 };
 
 /**
@@ -207,6 +211,7 @@ struct IndexFileHeader {
   int32_t  attr_length;        ///< 键值的长度
   int32_t  key_length;         ///< attr length + sizeof(RID)
   int32_t attr_nums;
+  int32_t unique_index;
   std::vector<AttrType> attr_types;          ///< 键值的类型
   std::vector<pair<int32_t,int32_t>> off_and_sizes;
   const string to_string() const {
@@ -515,7 +520,7 @@ public:
   RC delete_entry(const char *user_key, const RID *rid);
 
   bool is_empty() const;
-
+  void set_unique(bool unique) { unique_ = unique; }
   /**
    * @brief 获取指定值的record
    * @param key_len user_key的长度
@@ -670,6 +675,7 @@ protected:
   KeyPrinter    key_printer_;
 
   unique_ptr<common::MemPoolItem> mem_pool_item_;
+  bool unique_;
 
 private:
   friend class BplusTreeScanner;

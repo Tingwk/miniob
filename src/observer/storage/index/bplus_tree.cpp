@@ -819,7 +819,8 @@ RC BplusTreeHandler::create(LogHandler &log_handler,
   file_header->internal_max_size = internal_max_size;
   file_header->leaf_max_size     = leaf_max_size;
   file_header->root_page         = BP_INVALID_PAGE_NUM;
-  pdata += 6 * sizeof(int32_t);
+  file_header->unique_index = (unique_ ? 1 : 0);
+  pdata += 7 * sizeof(int32_t);
   for (size_t i = 0; i < attr_types.size(); i++) {
     *reinterpret_cast<AttrType*>(pdata) = attr_types[i];
     pdata += sizeof(AttrType);
@@ -848,7 +849,7 @@ RC BplusTreeHandler::create(LogHandler &log_handler,
     return RC::NOMEM;
   }
 
-  key_comparator_.init(file_header_.attr_types, file_header_.off_and_sizes ,file_header->attr_length);
+  key_comparator_.init(file_header_.attr_types, file_header_.off_and_sizes ,file_header->attr_length, unique_);
   key_printer_.init(file_header_.attr_types, file_header_.off_and_sizes,  file_header->attr_length);
 
   /*
@@ -910,10 +911,11 @@ RC BplusTreeHandler::open(LogHandler &log_handler, DiskBufferPool &buffer_pool) 
   file_header_.internal_max_size = file_header->internal_max_size;
   file_header_.attr_nums = file_header->attr_nums;
   file_header_.root_page = file_header->root_page;
+  file_header_.unique_index = file_header->unique_index;
   file_header_.attr_types.resize(file_header_.attr_nums);
-
+  unique_ = (file_header_.unique_index != 0);
   auto size_of_int32 = sizeof(int32_t);
-  pdata += 6 * size_of_int32;
+  pdata += 7 * size_of_int32;
   for (int32_t i = 0; i < file_header_.attr_nums; i++) {
     file_header_.attr_types[i] = *reinterpret_cast<AttrType*>(pdata);
     pdata+= size_of_int32;
@@ -941,7 +943,7 @@ RC BplusTreeHandler::open(LogHandler &log_handler, DiskBufferPool &buffer_pool) 
   // close old page_handle
   buffer_pool.unpin_page(frame);
 
-  key_comparator_.init(file_header_.attr_types, file_header_.off_and_sizes, file_header_.attr_length);
+  key_comparator_.init(file_header_.attr_types, file_header_.off_and_sizes, file_header_.attr_length, unique_);
   key_printer_.init(file_header_.attr_types, file_header_.off_and_sizes, file_header_.attr_length);
   LOG_INFO("Successfully open index");
   return RC::SUCCESS;
@@ -1404,7 +1406,7 @@ RC BplusTreeHandler::recover_init_header_page(BplusTreeMiniTransaction &mtr, Fra
   header_dirty_ = false;
   frame->mark_dirty();
 
-  key_comparator_.init(file_header_.attr_types, file_header_.off_and_sizes,file_header_.attr_length);
+  key_comparator_.init(file_header_.attr_types, file_header_.off_and_sizes,file_header_.attr_length, unique_);
   key_printer_.init(file_header_.attr_types, file_header_.off_and_sizes, file_header_.attr_length);
 
   return RC::SUCCESS;
