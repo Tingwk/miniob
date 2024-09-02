@@ -487,13 +487,15 @@ public:
   const std::unique_ptr<Expression> &child() const { return child_; }
 
   std::unique_ptr<Aggregator> create_aggregator() const;
-
+  void set_initial_value_null() {initial_value_null_ = true;}
+  bool initial_value_is_null() const { return initial_value_null_; }
 public:
   static RC type_from_string(const char *type_str, Type &type);
 
 private:
   Type                        aggregate_type_;
   std::unique_ptr<Expression> child_;
+  bool initial_value_null_ = false;
 };
 
 class ErrorExpr : public Expression {

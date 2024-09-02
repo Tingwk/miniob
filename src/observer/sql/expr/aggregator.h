@@ -24,7 +24,7 @@ public:
 
   virtual RC accumulate(const Value &value) = 0;
   virtual RC evaluate(Value &result)        = 0;
-
+  void set_null() {value_.set_null();}
 protected:
   Value value_;
 };
