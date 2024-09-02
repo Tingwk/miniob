@@ -15,8 +15,10 @@ See the Mulan PSL v2 for more details. */
 #include "sql/expr/aggregator.h"
 #include "common/log/log.h"
 #include "common/lang/comparator.h"
-RC SumAggregator::accumulate(const Value &value)
-{
+RC SumAggregator::accumulate(const Value &value) {
+  if (value.attr_type() == AttrType::NULLS) {
+    return RC::SUCCESS;
+  }
   if (value_.attr_type() == AttrType::UNDEFINED) {
     value_ = value;
     return RC::SUCCESS;
@@ -65,6 +67,9 @@ RC CountAggregator::evaluate(Value& result) {
 
 MinAggregator::MinAggregator(AttrType type) : type_(type), started_(false) {}
 RC MinAggregator::accumulate(const Value& value) {
+  if (value.attr_type() == AttrType::NULLS) {
+    return RC::SUCCESS;
+  }
   if (!started_) {
     value_ = value;
     started_ = true;
@@ -112,6 +117,9 @@ RC MinAggregator::evaluate(Value &result) {
 }
 
 RC MaxAggregator::accumulate(const Value& value) {
+  if (value.attr_type() == AttrType::NULLS) {
+    return RC::SUCCESS;
+  }
   if (value_.attr_type() == AttrType::UNDEFINED) {
     value_ = value;
   } else {
@@ -155,6 +163,10 @@ RC MaxAggregator::evaluate(Value& result) {
 }
 
 RC AvgAggrgator::accumulate(const Value& v) {
+  if (v.attr_type() == AttrType::NULLS) {
+    ++count_;
+    return RC::SUCCESS;
+  }
   if (count_ == 0) {
     value_ = v;
   } else {
