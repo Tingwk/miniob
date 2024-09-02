@@ -164,7 +164,6 @@ RC MaxAggregator::evaluate(Value& result) {
 
 RC AvgAggrgator::accumulate(const Value& v) {
   if (v.attr_type() == AttrType::NULLS) {
-    ++count_;
     return RC::SUCCESS;
   }
   if (count_ == 0) {
