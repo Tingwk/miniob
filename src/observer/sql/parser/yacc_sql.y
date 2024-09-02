@@ -490,10 +490,6 @@ value:
       free(tmp);
       free($1);
     }
-    | null {
-      $$ = new Value();
-      $$->set_null();
-    }
     ;
 storage_format:
     /* empty */
@@ -919,38 +915,6 @@ condition:
       delete $1;
       delete $3;
     }
-    | rel_attr IS null {
-      $$ = new ConditionSqlNode;
-      $$->left_value_type = ValueType::ATTRIBUTE;
-      $$->left_attr = *$1;
-      $$->right_value_type = ValueType::NULL_TYPE;
-      $$->comp = IS_NULL_;
-      delete $1;
-    }
-    | rel_attr IS NOT null {
-      $$ = new ConditionSqlNode;
-      $$->left_value_type = ValueType::ATTRIBUTE;
-      $$->left_attr = *$1;
-      $$->right_value_type = ValueType::NULL_TYPE;
-      $$->comp = IS_NOT_NULL_;
-      delete $1;
-    }
-    | rel_attr NE null {
-      $$ = new ConditionSqlNode;
-      $$->left_value_type = ValueType::ATTRIBUTE;
-      $$->left_attr = *$1;
-      $$->right_value_type = ValueType::NULL_TYPE;
-      $$->comp = NOT_EQUAL;
-      delete $1;
-    }
-    | null NE rel_attr {
-      $$ = new ConditionSqlNode;
-      $$->right_value_type = ValueType::NULL_TYPE;
-      $$->left_value_type = ValueType::ATTRIBUTE;
-      $$->left_attr = *$3;
-      $$->comp = NOT_EQUAL;
-      delete $3;
-    }
     | value IS null {
       $$ = new ConditionSqlNode;
       $$->left_value_type = ValueType::CONSTANT;
@@ -967,23 +931,56 @@ condition:
       $$->comp = IS_NOT_NULL_;
       delete $1;
     }
-    | value NE null {
+    | value comp_op null {
       cout << "hello\n";
       $$ = new ConditionSqlNode;
       $$->left_value_type = ValueType::CONSTANT;
       $$->left_value = *$1;
       $$->right_value_type = ValueType::NULL_TYPE;
-      $$->comp = NOT_EQUAL;
+      $$->comp = $2;
       delete $1;
     }
-    | null NE value {
+    | null comp_op value {
       $$ = new ConditionSqlNode;
       $$->right_value_type = ValueType::NULL_TYPE;
       $$->left_value = *$3;
       $$->left_value_type = ValueType::CONSTANT;
-      $$->comp = NOT_EQUAL;
+      $$->comp = $2;
       delete $3;
     }
+    | rel_attr IS null {
+      $$ = new ConditionSqlNode;
+      $$->left_value_type = ValueType::ATTRIBUTE;
+      $$->left_attr = *$1;
+      $$->right_value_type = ValueType::NULL_TYPE;
+      $$->comp = IS_NULL_;
+      delete $1;
+    }
+    | rel_attr IS NOT null {
+      $$ = new ConditionSqlNode;
+      $$->left_value_type = ValueType::ATTRIBUTE;
+      $$->left_attr = *$1;
+      $$->right_value_type = ValueType::NULL_TYPE;
+      $$->comp = IS_NOT_NULL_;
+      delete $1;
+    }
+    | rel_attr comp_op null {
+      $$ = new ConditionSqlNode;
+      $$->left_value_type = ValueType::ATTRIBUTE;
+      $$->left_attr = *$1;
+      $$->right_value_type = ValueType::NULL_TYPE;
+      $$->comp = $2;
+      delete $1;
+    }
+    | null comp_op rel_attr {
+      $$ = new ConditionSqlNode;
+      $$->right_value_type = ValueType::NULL_TYPE;
+      $$->left_value_type = ValueType::ATTRIBUTE;
+      $$->left_attr = *$3;
+      $$->comp = $2;
+      delete $3;
+    }
+   
     ;
 
 comp_op:
