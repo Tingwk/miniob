@@ -203,6 +203,13 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, const std::unord
       obj.init_value_list(condition.value_list);
       filter_unit->set_right(obj);
     }break;
+    case ValueType::NULL_TYPE: {
+      Value v;
+      v.set_null();
+      FilterObj obj;
+      obj.init_value(v);
+      filter_unit->set_right(obj);
+    }break;
     default:
       break;
   }

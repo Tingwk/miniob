@@ -95,6 +95,7 @@ UNIQUE                                  RETURN_TOKEN(UNIQUE);
 null                                    RETURN_TOKEN(null);
 TABLES                                  RETURN_TOKEN(TABLES);
 INDEX                                   RETURN_TOKEN(INDEX);
+IS                                      RETURN_TOKEN(IS);
 ON                                      RETURN_TOKEN(ON);
 SHOW                                    RETURN_TOKEN(SHOW);
 SYNC                                    RETURN_TOKEN(SYNC);

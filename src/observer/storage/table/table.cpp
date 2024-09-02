@@ -126,8 +126,7 @@ RC Table::create(Db *db, int32_t table_id, const char *path, const char *name, c
   return rc;
 }
 
-RC Table::open(Db *db, const char *meta_file, const char *base_dir)
-{
+RC Table::open(Db *db, const char *meta_file, const char *base_dir) {
   // 加载元数据文件
   fstream fs;
   string  meta_file_path = string(base_dir) + common::FILE_PATH_SPLIT_STR + meta_file;
@@ -268,7 +267,7 @@ RC Table::make_record(int value_num, const Value *values, Record &record) {
   for (int i = 0; i < value_num; i++) {
     const FieldMeta *field = table_meta_.field(i + normal_field_start_index);
     const Value     &value = values[i];
-    if (field->type() != value.attr_type()) {
+    if (value.attr_type() != AttrType::NULLS && field->type() != value.attr_type()) {
       LOG_ERROR("Invalid value type. table name =%s, field name=%s, type=%d, but given=%d",
                 table_meta_.name(), field->name(), field->type(), value.attr_type());
       return RC::SCHEMA_FIELD_TYPE_MISMATCH;
@@ -283,6 +282,15 @@ RC Table::make_record(int value_num, const Value *values, Record &record) {
     const FieldMeta *field    = table_meta_.field(i + normal_field_start_index);
     const Value     &value    = values[i];
     size_t           copy_len = field->len();
+    if (value.attr_type() == AttrType::NULLS) {
+      assert(field->nullable());
+      if (i < value_num - 1) {
+        assert(table_meta_.field(i + normal_field_start_index + 1)->offset() == field->offset() + field->len() + 1);
+      }
+      auto is_null = static_cast<char*>(record_data + field->offset() + field->len());
+      *is_null = 1;
+      continue;
+    }
     if (field->type() == AttrType::CHARS) {
       const size_t data_len = value.length();
       if (copy_len > data_len) {

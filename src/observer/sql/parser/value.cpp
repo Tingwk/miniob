@@ -134,6 +134,9 @@ void Value::set_boolean(bool val) {
   num_value_.bool_value_ = val;
   length_                = sizeof(val);
 }
+void Value::set_null() {
+  attr_type_ = AttrType::NULLS; 
+}
 void Value::set_string(const char *s, int len /*= 0*/) {
   attr_type_ = AttrType::CHARS;
   if (len > 0) {
@@ -198,6 +201,9 @@ std::string Value::to_string() const
     case AttrType::CHARS: {
       os << str_value_;
     } break;
+    case AttrType::NULLS: {
+      os << "null";
+    }break;
     default: {
       LOG_WARN("unsupported attr type: %d", attr_type_);
     } break;

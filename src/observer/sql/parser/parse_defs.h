@@ -57,6 +57,8 @@ enum CompOp
   NOT_IN_,
   EXISTS_,
   NOT_EXISTS_,
+  IS_NULL_,
+  IS_NOT_NULL_,
   NO_OP,
 };
 
@@ -71,6 +73,7 @@ enum class ValueType {
   CONSTANT,
   SUB_QUERY,
   VALUE_LIST,
+  NULL_TYPE,
 };
 
 /**

@@ -125,6 +125,7 @@ UnboundAggregateExpr *create_aggregate_expression(const char *aggregate_name,
         LENGTH
         DATA_FORMAT
         null
+        IS
 
 /** union 中定义各种数据类型，真实生成的代码也是union类型，所以不能有非POD类型的数据 **/
 %union {
@@ -488,6 +489,10 @@ value:
       $$ = new Value(tmp);
       free(tmp);
       free($1);
+    }
+    | null {
+      $$ = new Value();
+      $$->set_null();
     }
     ;
 storage_format:
@@ -913,6 +918,22 @@ condition:
 
       delete $1;
       delete $3;
+    }
+    | rel_attr IS null {
+      $$ = new ConditionSqlNode;
+      $$->left_value_type = ValueType::ATTRIBUTE;
+      $$->left_attr = *$1;
+      $$->right_value_type = ValueType::NULL_TYPE;
+      $$->comp = IS_NULL_;
+      delete $1;
+    }
+    | rel_attr IS NOT null {
+      $$ = new ConditionSqlNode;
+      $$->left_value_type = ValueType::ATTRIBUTE;
+      $$->left_attr = *$1;
+      $$->right_value_type = ValueType::NULL_TYPE;
+      $$->comp = IS_NOT_NULL_;
+      delete $1;
     }
     ;
 

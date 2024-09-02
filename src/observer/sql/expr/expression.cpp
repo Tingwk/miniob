@@ -294,6 +294,15 @@ RC ComparisonExpr::get_value(const Tuple &tuple, Value &value) const
     LOG_WARN("failed to get value of left expression. rc=%s", strrc(rc));
     return rc;
   }
+  if (comp_ == IS_NOT_NULL_) {
+    bool result = left_value.attr_type() != AttrType::NULLS;
+    value.set_boolean(result);
+    return RC::SUCCESS;
+  } else if (comp_ == IS_NULL_) {
+    bool result = left_value.attr_type() == AttrType::NULLS;
+    value.set_boolean(result);
+    return RC::SUCCESS;
+  }
   if (right_->type() == ExprType::SUB_QUERY_PHYSICAL_EXPR || right_->type() == ExprType::VALUE_LIST_EXPR) {
     std::vector<Value> results;
     if (right_->type() == ExprType::SUB_QUERY_PHYSICAL_EXPR) {

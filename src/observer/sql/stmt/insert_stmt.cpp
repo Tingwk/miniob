@@ -53,6 +53,13 @@ RC InsertStmt::create(Db *db, InsertSqlNode &inserts, Stmt *&stmt)
     const FieldMeta *field_meta = table_meta.field(i + sys_field_num);
     const AttrType   field_type = field_meta->type();
     const AttrType   value_type = values[i].attr_type();
+    if (value_type == AttrType::NULLS) {
+      if (!field_meta->nullable()) {
+        LOG_WARN("attribute %s is not allowed to be null", field_meta->name());
+        return RC::INTERNAL;
+      }
+      continue;
+    }
     if (field_type == AttrType::DATES) {
       // check whether date value is valid or not
       if (value_type != AttrType::CHARS) {
