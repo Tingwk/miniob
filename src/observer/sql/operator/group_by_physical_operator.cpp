@@ -40,9 +40,9 @@ void GroupByPhysicalOperator::create_aggregator_list(AggregatorList &aggregator_
   ranges::for_each(aggregate_expressions_, [&aggregator_list](Expression *expr) {
     auto *aggregate_expr = static_cast<AggregateExpr *>(expr);
     auto res = aggregate_expr->create_aggregator();
-    if (aggregate_expr->initial_value_is_null() && aggregate_expr->aggregate_type() != AggregateExpr::Type::COUNT ) {
-      res->set_null();
-    }
+    // if (aggregate_expr->initial_value_is_null() && aggregate_expr->aggregate_type() != AggregateExpr::Type::COUNT ) {
+    //   res->set_null();
+    // }
     aggregator_list.emplace_back(std::move(res));
   });
 }

@@ -27,6 +27,7 @@ public:
   void set_null() {value_.set_null();}
 protected:
   Value value_;
+  uint32_t count_{0};
 };
 
 class SumAggregator : public Aggregator
@@ -64,12 +65,11 @@ private:
 
 class AvgAggrgator : public Aggregator {
 public:
-  AvgAggrgator(AttrType type) :count_(0) , type_(type) {
+  AvgAggrgator(AttrType type) : type_(type) {
     //ASSERT(type == AttrType::INTS || type == AttrType::FLOATS, "only int & float are valid types");
   }
   RC accumulate(const Value &value) override;
   RC evaluate(Value &result) override;
 private:
-  int count_;
   AttrType type_;
 };

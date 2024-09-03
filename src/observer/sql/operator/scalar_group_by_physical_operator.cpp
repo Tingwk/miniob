@@ -24,8 +24,7 @@ ScalarGroupByPhysicalOperator::ScalarGroupByPhysicalOperator(vector<Expression *
     : GroupByPhysicalOperator(std::move(expressions))
 {}
 
-RC ScalarGroupByPhysicalOperator::open(Trx *trx)
-{
+RC ScalarGroupByPhysicalOperator::open(Trx *trx) {
   ASSERT(children_.size() == 1, "group by operator only support one child, but got %d", children_.size());
 
   PhysicalOperator &child = *children_[0];

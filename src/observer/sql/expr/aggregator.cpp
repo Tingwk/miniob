@@ -21,6 +21,7 @@ RC SumAggregator::accumulate(const Value &value) {
   }
   if (value_.attr_type() == AttrType::UNDEFINED) {
     value_ = value;
+    ++count_;
     return RC::SUCCESS;
   }
   
@@ -39,21 +40,22 @@ RC SumAggregator::accumulate(const Value &value) {
       return RC::INTERNAL;
     }
   }
+  ++count_;
   return RC::SUCCESS;
 }
 
-RC SumAggregator::evaluate(Value& result)
-{
-  result = value_;
+RC SumAggregator::evaluate(Value& result) {
+  // std::cout << "count in sum:" << count_ << '\n';
+  if (count_ == 0) {
+    result.set_null();
+  } else {
+    result = value_;
+  }
   return RC::SUCCESS;
 }
 
 RC CountAggregator::accumulate(const Value & value) {
   if (value.attr_type() == AttrType::NULLS) {
-    return RC::SUCCESS;
-  }
-  if (value.attr_type() == AttrType::UNDEFINED) {
-    value_.set_int(1);
     return RC::SUCCESS;
   }
   value_.set_int(value_.get_int() + 1);
@@ -73,6 +75,7 @@ RC MinAggregator::accumulate(const Value& value) {
   if (!started_) {
     value_ = value;
     started_ = true;
+    ++count_;
   } else {
     switch (type_) {
       case AttrType::INTS: {
@@ -81,11 +84,7 @@ RC MinAggregator::accumulate(const Value& value) {
         }
       } break;
       case AttrType::DATES: {
-        // auto our_date = static_cast<uint32_t>(value_.get_int());
-        // auto other_date = static_cast<uint32_t>(value.get_int());
-        // if (our_date > other_date) {
-        //   value_ = value;
-        // }
+        
         if (value.get_uint() < value_.get_uint()) {
           value_ = value;
         }
@@ -108,11 +107,17 @@ RC MinAggregator::accumulate(const Value& value) {
       break;
     }
   }
+  ++count_;
   return RC::SUCCESS;
 }
 
 RC MinAggregator::evaluate(Value &result) {
-  result = value_;
+  // std::cout << "count in min:" << count_ << '\n';
+  if (count_ == 0) {
+    result.set_null();
+  } else {
+    result = value_;
+  }
   return RC::SUCCESS;
 }
 
@@ -122,6 +127,7 @@ RC MaxAggregator::accumulate(const Value& value) {
   }
   if (value_.attr_type() == AttrType::UNDEFINED) {
     value_ = value;
+    ++count_;
   } else {
     switch (type_) {
       case AttrType::INTS: {
@@ -154,11 +160,17 @@ RC MaxAggregator::accumulate(const Value& value) {
       break;
     }
   }
+  ++count_;
   return RC::SUCCESS;
 }
 
 RC MaxAggregator::evaluate(Value& result) {
-  result = value_;
+  // std::cout << "count in max:" << count_ << '\n';
+  if (count_ == 0) {
+    result.set_null();
+  } else {
+    result = value_;
+  }
   return RC::SUCCESS;
 }
 
@@ -180,8 +192,9 @@ RC AvgAggrgator::accumulate(const Value& v) {
 }
 
 RC AvgAggrgator::evaluate(Value& v) {
+  // std::cout << "count in avg:" << count_ << '\n';
   if (count_ == 0) {
-    v.set_float(0.0);
+    v.set_null();
   } else {
     if (type_ == AttrType::INTS) {
       v.set_float(value_.get_int() * 1.0 / count_);
