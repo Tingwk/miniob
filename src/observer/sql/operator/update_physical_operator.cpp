@@ -7,30 +7,31 @@
 
 UpdatePhysicalOperator::UpdatePhysicalOperator(Table* t, const Value* values, int value_amount, const FieldMeta* meta) 
 : tuple_(),table_(t), values_(), value_amount_(value_amount),meta_(meta) {
-  switch (meta_->type()) {
-    case AttrType::DATES: 
-      int val;
-      date_str_to_int(values->get_string(), val);
-      values_.set_date(val);
-      break;
-    case AttrType::CHARS:
-      values_.set_string(values->get_string().c_str());
-      break;
-    case AttrType::INTS:
-      values_.set_int(values->get_int());
-      break;
-    case AttrType::FLOATS:
-      values_.set_float(values->get_float());
-      break;
-    case AttrType::BOOLEANS:
-      values_.set_boolean(values->get_boolean());
-      break;
-    case AttrType::NULLS : {
-      values_.set_null();
-      cout << "update to null\n";
-    }break;
-    default:
-      break;
+  if (values->attr_type() ==AttrType::NULLS) {
+    values_.set_null();
+  } else {
+    switch (meta_->type()) {
+      case AttrType::DATES: 
+        int val;
+        date_str_to_int(values->get_string(), val);
+        values_.set_date(val);
+        break;
+      case AttrType::CHARS:
+        values_.set_string(values->get_string().c_str());
+        break;
+      case AttrType::INTS:
+        values_.set_int(values->get_int());
+        break;
+      case AttrType::FLOATS:
+        values_.set_float(values->get_float());
+        break;
+      case AttrType::BOOLEANS:
+        values_.set_boolean(values->get_boolean());
+        break;
+      
+      default:
+        break;
+    }
   }
 }
 
