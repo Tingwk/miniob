@@ -164,7 +164,7 @@ UnboundAggregateExpr *create_aggregate_expression(const char *aggregate_name,
 %type <value>               value_with_null
 %type <id_list_type>        id_list
 %type <number>              number
-// %type <string>              relation
+// %type <string>           relation
 %type <comp>                comp_op
 %type <rel_attr>            rel_attr
 %type <attr_infos>          attr_def_list
@@ -177,6 +177,7 @@ UnboundAggregateExpr *create_aggregate_expression(const char *aggregate_name,
 %type <order_by_list>       order_list
 %type <condition_list>      condition_list
 %type <condition_list>      subquery_value_list
+%type <condition_list>      on_conditions
 %type <string>              storage_format
 %type <relation_list>       rel_list
 %type <expression>          expression
@@ -743,37 +744,36 @@ rel_list:
       $$->joins.emplace($$->joins.begin(), join);
       free($2);
     }
-    | INNER JOIN ID rel_list {
+    | INNER JOIN ID on_conditions rel_list {
       $$ = new RelListSqlNode();
-      if ($4 != nullptr) {
-        $$->relations.swap(($4)->relations);
-        $$->joins.swap(($4)->joins);
-        delete $4;
-      }
-      JoinSqlNode join;
-      join.type = JoinType::INNER_JOIN;
-      $$->joins.emplace($$->joins.begin(), join);
-      $$->relations.emplace($$->relations.begin(), $3);
-      free($3);
-    }
-    | INNER JOIN ID ON condition_list rel_list {
-      $$ = new RelListSqlNode();
-      if ($6 != nullptr) {
-        $$->relations.swap(($6)->relations);
-        $$->joins.swap(($6)->joins);
-        delete $6;
-      }
-      JoinSqlNode join;
-      join.type = JoinType::INNER_JOIN;
       if ($5 != nullptr) {
-        join.conditions.swap(*$5);
+        $$->relations.swap(($5)->relations);
+        $$->joins.swap(($5)->joins);
         delete $5;
+      }
+      JoinSqlNode join;
+      join.type = JoinType::INNER_JOIN;
+      if ($4 != nullptr) {
+        join.conditions.swap(*$4);
+        delete $4;
       }
       $$->joins.emplace($$->joins.begin() ,join);
       $$->relations.emplace($$->relations.begin(), $3);
       free($3);
     }
     ;
+on_conditions:
+  /* empty */ 
+  {
+    $$ = nullptr;
+  }
+  | ON condition_list {
+    $$ = $2;
+  }
+  | ON subquery_value_list {
+    $$ = $2;
+  }
+  ;
 
 where:
     /* empty */
@@ -785,7 +785,7 @@ where:
     }
     | WHERE subquery_value_list {
       $$ = $2;
-    }
+    };
 
 subquery_value_list:
     /* empty */
