@@ -15,8 +15,7 @@
 
 using namespace std;
 
-string token_name(const char *sql_string, YYLTYPE *llocp)
-{
+string token_name(const char *sql_string, YYLTYPE *llocp) {
   return string(sql_string + llocp->first_column, llocp->last_column - llocp->first_column + 1);
 }
 
@@ -160,6 +159,7 @@ UnboundAggregateExpr *create_aggregate_expression(const char *aggregate_name,
 /** type 定义了各种解析后的结果输出的是什么类型。类型对应了 union 中的定义的成员变量名称 **/
 %type <number>              type
 %type <condition>           condition
+%type <condition>           subquery
 %type <value>               value
 %type <value>               value_with_null
 %type <id_list_type>        id_list
@@ -176,6 +176,7 @@ UnboundAggregateExpr *create_aggregate_expression(const char *aggregate_name,
 %type <order_by_list>       order_by
 %type <order_by_list>       order_list
 %type <condition_list>      condition_list
+%type <condition_list>      subquery_value_list
 %type <string>              storage_format
 %type <relation_list>       rel_list
 %type <expression>          expression
@@ -782,99 +783,104 @@ where:
     | WHERE condition_list {
       $$ = $2;  
     }
-    | WHERE rel_attr comp_op LBRACE select_stmt RBRACE {
-      $$ = new std::vector<ConditionSqlNode>;
-      ConditionSqlNode q;
-      q.left_value_type = ValueType::ATTRIBUTE;
-      q.left_attr = *$2;
-      q.comp = $3;
-      q.right_value_type = ValueType::SUB_QUERY;
-      /*std::cout << "709 address:" << $5 << '\n';
-      cout << $5->selection.relations[0] << '\n'; */
-      q.right_sub_queries = $5;
-      delete $2;
-      $$->emplace_back(q);
-      // cout << (*$$)[0].right_sub_queries << '\n';
-    } 
-    | WHERE LBRACE select_stmt RBRACE comp_op rel_attr {
-      $$ = new std::vector<ConditionSqlNode>;
-      ConditionSqlNode q;
-      q.left_value_type = ValueType::ATTRIBUTE;
-      q.left_attr = *$6;
-      q.comp = $5;
-      if (q.comp == CompOp::LESS_THAN) {
-        q.comp = CompOp::GREAT_THAN;
-      } else if (q.comp == CompOp::LESS_EQUAL) {
-        q.comp = CompOp::GREAT_EQUAL;
-      } else if (q.comp == CompOp::GREAT_THAN) {
-        q.comp = CompOp::LESS_THAN;
-      } else if (q.comp == CompOp::GREAT_EQUAL) {
-        q.comp = CompOp::LESS_EQUAL;
-      } 
-      q.right_value_type = ValueType::SUB_QUERY;
-      q.right_sub_queries = $3;
-      delete $6;
-      $$->emplace_back(q);
+    | WHERE subquery_value_list {
+      $$ = $2;
     }
-    | WHERE rel_attr comp_op LBRACE value value_list RBRACE {
-      $$ = new std::vector<ConditionSqlNode>;
-      ConditionSqlNode q;
-      q.left_value_type = ValueType::ATTRIBUTE;
-      q.left_attr = *$2;
-      q.comp = $3;
-      q.right_value_type = ValueType::VALUE_LIST;
-      delete $2;
-      if ($6 != nullptr) {
-        q.value_list = $6;
-      } else {
-        q.value_list = new std::vector<Value>();
-      }
-      q.value_list->emplace(q.value_list->begin(), *$5);
-      delete $5;
-      $$->emplace_back(q);
-    }
-    | WHERE LBRACE value value_list RBRACE comp_op rel_attr {
-      $$ = new std::vector<ConditionSqlNode>;
-      ConditionSqlNode q;
-      q.left_value_type = ValueType::ATTRIBUTE;
-      q.left_attr = *$7;
-      q.comp = $6;
-      if (q.comp == CompOp::LESS_THAN) {
-        q.comp = CompOp::GREAT_THAN;
-      } else if (q.comp == CompOp::LESS_EQUAL) {
-        q.comp = CompOp::GREAT_EQUAL;
-      } else if (q.comp == CompOp::GREAT_THAN) {
-        q.comp = CompOp::LESS_THAN;
-      } else if (q.comp == CompOp::GREAT_EQUAL) {
-        q.comp = CompOp::LESS_EQUAL;
-      } 
-      q.right_value_type = ValueType::VALUE_LIST;
-      if ($4 != nullptr) {
-        q.value_list = $4;
-      } else {
-        q.value_list = new vector<Value>();
-      }
-      q.value_list->emplace(q.value_list->begin(), *$3);
-      delete $3;
-      delete $7;
-      $$->emplace_back(q);
-    }
-    ;
-/*
-subquery_value_list:
-    {
 
+subquery_value_list:
+    /* empty */
+    {
+      $$ = nullptr;
     }
     | subquery {
-
+      $$ = new std::vector<ConditionSqlNode>;
+      $$->emplace_back(*$1);
+      delete $1;
     } 
-    | value_list {
-
+    | subquery AND subquery_value_list {
+      $$ = $3;
+      $$->emplace_back(*$1);
+      delete $1;
     } 
+    | subquery AND condition_list {
+      $$ = $3;
+      $$->emplace_back(*$1);
+      delete $1;
+    }
+    ;
 subquery:
+    rel_attr comp_op LBRACE select_stmt RBRACE {
+      $$ = new ConditionSqlNode;
+      $$->left_value_type = ValueType::ATTRIBUTE;
+      $$->left_attr = *$1;
+      $$->comp = $2;
+      $$->right_value_type = ValueType::SUB_QUERY;
+      /*std::cout << "709 address:" << $5 << '\n';
+      cout << $5->selection.relations[0] << '\n'; */
+      $$->right_sub_queries = $4;
+      delete $1;
+      // cout << (*$$)[0].right_sub_queries << '\n';
+    } 
+    | LBRACE select_stmt RBRACE comp_op rel_attr {
+      $$ = new ConditionSqlNode;
+      
+      $$->left_value_type = ValueType::ATTRIBUTE;
+      $$->left_attr = *$5;
+      $$->comp = $4;
+      if ($$->comp == CompOp::LESS_THAN) {
+        $$->comp = CompOp::GREAT_THAN;
+      } else if ($$->comp == CompOp::LESS_EQUAL) {
+        $$->comp = CompOp::GREAT_EQUAL;
+      } else if ($$->comp == CompOp::GREAT_THAN) {
+        $$->comp = CompOp::LESS_THAN;
+      } else if ($$->comp == CompOp::GREAT_EQUAL) {
+        $$->comp = CompOp::LESS_EQUAL;
+      } 
+      $$->right_value_type = ValueType::SUB_QUERY;
+      $$->right_sub_queries = $2;
+      delete $5;
+    }
+    | rel_attr comp_op LBRACE value value_list RBRACE {
+      $$ = new ConditionSqlNode;
+      $$->left_value_type = ValueType::ATTRIBUTE;
+      $$->left_attr = *$1;
+      $$->comp = $2;
+      $$->right_value_type = ValueType::VALUE_LIST;
+      delete $1;
+      if ($5 != nullptr) {
+        $$->value_list = $5;
+      } else {
+        $$->value_list = new std::vector<Value>();
+      }
+      $$->value_list->emplace($$->value_list->begin(), *$4);
+      delete $4;
+    }
+    | LBRACE value value_list RBRACE comp_op rel_attr {
+      $$ = new ConditionSqlNode;
+      $$->left_value_type = ValueType::ATTRIBUTE;
+      $$->left_attr = *$6;
+      $$->comp = $5;
+      if ($$->comp == CompOp::LESS_THAN) {
+        $$->comp = CompOp::GREAT_THAN;
+      } else if ($$->comp == CompOp::LESS_EQUAL) {
+        $$->comp = CompOp::GREAT_EQUAL;
+      } else if ($$->comp == CompOp::GREAT_THAN) {
+        $$->comp = CompOp::LESS_THAN;
+      } else if ($$->comp == CompOp::GREAT_EQUAL) {
+        $$->comp = CompOp::LESS_EQUAL;
+      } 
+      $$->right_value_type = ValueType::VALUE_LIST;
+      if ($3 != nullptr) {
+        $$->value_list = $3;
+      } else {
+        $$->value_list = new vector<Value>();
+      }
+      $$->value_list->emplace($$->value_list->begin(), *$2);
+      delete $2;
+      delete $6;
+    }
+    ;
 
-valuelist:
-*/
 condition_list:
     /* empty */
     {
@@ -886,6 +892,11 @@ condition_list:
       delete $1;
     }
     | condition AND condition_list {
+      $$ = $3;
+      $$->emplace_back(*$1);
+      delete $1;
+    }
+    | condition AND subquery_value_list {
       $$ = $3;
       $$->emplace_back(*$1);
       delete $1;

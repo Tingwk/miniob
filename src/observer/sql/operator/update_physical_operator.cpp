@@ -69,9 +69,7 @@ RC UpdatePhysicalOperator::next() {
           *(static_cast<char*>(record.data() + offset + len)) = 0; 
         }
       }
-      // if (index != nullptr) {
-      //   index->insert_entry(record.data(), &record.rid());
-      // }
+      
     }
   }
   return RC::RECORD_EOF;
