@@ -25,8 +25,7 @@ See the Mulan PSL v2 for more details. */
 using namespace std;
 using namespace common;
 
-SelectStmt::~SelectStmt()
-{
+SelectStmt::~SelectStmt() {
   if (nullptr != filter_stmt_) {
     delete filter_stmt_;
     filter_stmt_ = nullptr;
@@ -36,8 +35,7 @@ SelectStmt::~SelectStmt()
   }
 }
 
-RC SelectStmt::create(Db *db, SelectSqlNode &select_sql, Stmt *&stmt)
-{
+RC SelectStmt::create(Db *db, SelectSqlNode &select_sql, Stmt *&stmt) {
   if (nullptr == db) {
     LOG_WARN("invalid argument. db is null");
     return RC::INVALID_ARGUMENT;
@@ -99,6 +97,7 @@ RC SelectStmt::create(Db *db, SelectSqlNode &select_sql, Stmt *&stmt)
     if (group_by_expressions[i]->type() == ExprType::FIELD) {
       gropy_columns.insert(static_cast<FieldExpr*>(group_by_expressions[i].get())->field_name());
     } 
+    ++i;
   }
 
   Table *default_table = nullptr;
