@@ -65,7 +65,9 @@ RC UpdatePhysicalOperator::next() {
         *(static_cast<char*>(record.data() + offset + len) ) = 1; 
       } else {
         std::memcpy((void*)(record.data() + offset), (void*)values_.data(), len);
-        *(static_cast<char*>(record.data() + offset + len)) = 0; 
+        if (meta_->nullable()) {
+          *(static_cast<char*>(record.data() + offset + len)) = 0; 
+        }
       }
       // if (index != nullptr) {
       //   index->insert_entry(record.data(), &record.rid());
