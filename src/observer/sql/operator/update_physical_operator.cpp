@@ -25,6 +25,10 @@ UpdatePhysicalOperator::UpdatePhysicalOperator(Table* t, const Value* values, in
     case AttrType::BOOLEANS:
       values_.set_boolean(values->get_boolean());
       break;
+    case AttrType::NULLS : {
+      values_.set_null();
+      cout << "update to null\n";
+    }break;
     default:
       break;
   }
@@ -51,12 +55,17 @@ RC UpdatePhysicalOperator::next() {
       auto record = tuple->record();
       // for (auto index : table_->table_meta().index())12345
       table_->update_indexes(meta_->name(), record, meta_, &values_);
-      
-      auto field_len = meta_->len();
-      // if (meta_->type() == AttrType::CHARS && values_->length() < field_len) {
-      //   field_len = values_->length() + 1;
-      // }
-      std::memcpy((void*)(record.data() + field_meta()->offset()), (void*)values_.data(), field_len);
+
+      auto offset = meta_->offset();
+      auto len = meta_->len();
+      if (values_.attr_type() == AttrType::NULLS) {
+        std::memset((void *)(record.data() + offset), 0, len);
+        // mark cell is null
+        *(static_cast<char*>(record.data() + offset + len) ) = 1; 
+      } else {
+        std::memcpy((void*)(record.data() + offset), (void*)values_.data(), len);
+        *(static_cast<char*>(record.data() + offset + len)) = 0; 
+      }
       // if (index != nullptr) {
       //   index->insert_entry(record.data(), &record.rid());
       // }

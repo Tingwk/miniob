@@ -540,7 +540,7 @@ delete_stmt:    /*  delete 语句的语法解析树*/
     }
     ;
 update_stmt:      /*  update 语句的语法解析树*/
-    UPDATE ID SET ID EQ value where 
+    UPDATE ID SET ID EQ value_with_null where 
     {
       $$ = new ParsedSqlNode(SCF_UPDATE);
       $$->update.relation_name = $2;
@@ -1020,6 +1020,12 @@ condition:
       $$->left_value.set_int(0);
       $$->right_value.set_int(1);
       $$->comp = EQUAL_TO;
+    }
+    | null comp_op null {
+      $$ = new ConditionSqlNode;
+      $$->right_value_type = ValueType::NULL_TYPE;
+      $$->left_value_type = ValueType::NULL_TYPE;
+      $$->comp = $2;
     }
    
     ;
