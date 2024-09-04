@@ -57,6 +57,7 @@ enum class PhysicalOperatorType
   EXPR_VEC,
   UPDATE,
   ORDER_BY,
+  CREATE_SELECT,
 };
 
 /**
