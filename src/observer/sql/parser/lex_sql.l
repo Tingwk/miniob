@@ -116,6 +116,7 @@ BEGIN                                   RETURN_TOKEN(TRX_BEGIN);
 COMMIT                                  RETURN_TOKEN(TRX_COMMIT);
 ROLLBACK                                RETURN_TOKEN(TRX_ROLLBACK);
 DATE                                    RETURN_TOKEN(DATE_T);
+TEXT                                    RETURN_TOKEN(TEXT_T);
 INT                                     RETURN_TOKEN(INT_T);
 IN                                      RETURN_TOKEN(IN);
 EXISTS                                  RETURN_TOKEN(EXISTS);

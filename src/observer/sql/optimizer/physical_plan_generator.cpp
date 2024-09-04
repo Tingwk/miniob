@@ -318,8 +318,18 @@ RC PhysicalPlanGenerator::create_plan(ProjectLogicalOperator &project_oper, uniq
 
 RC PhysicalPlanGenerator::create_plan(UpdateLogicalOperator &update_per, unique_ptr<PhysicalOperator> &oper) {
   auto table = update_per.table();
-  const Value* values = update_per.value();
-  UpdatePhysicalOperator *up = new UpdatePhysicalOperator(table, values, update_per.value_count(), update_per.field_meta());
+  // const Value* values = update_per.value();
+  std::vector<std::unique_ptr<SubQueryPhysicalExpr>> sub_phy_opers;
+  for (auto & log_oper : update_per.sub_queries()) {
+    std::unique_ptr<PhysicalOperator> query;
+    if (RC::SUCCESS != create(*log_oper->sub_query().get(), query)) {
+      return RC::INTERNAL;
+    }
+    std::unique_ptr<SubQueryPhysicalExpr> phy_oper (new SubQueryPhysicalExpr(std::move(query)));
+    sub_phy_opers.emplace_back(std::move(phy_oper));
+  }
+  // UpdatePhysicalOperator *up = new UpdatePhysicalOperator(table, values, update_per.value_count(), update_per.field_meta());
+  UpdatePhysicalOperator *up = new UpdatePhysicalOperator(table, std::move(update_per.assignments()), std::move(update_per.indices()), std::move(sub_phy_opers));
   std::vector<std::unique_ptr<LogicalOperator>> &children = update_per.children();
   std::unique_ptr<PhysicalOperator> child_phy_oper;
   RC rc;

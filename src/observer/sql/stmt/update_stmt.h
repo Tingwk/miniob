@@ -21,6 +21,13 @@ See the Mulan PSL v2 for more details. */
 class FilterStmt;
 class Table;
 
+struct AssignmentUnit {
+  const FieldMeta* field_meta;
+  ValueType new_value_type;
+  Value new_value;
+  Stmt* sub_query;
+};
+
 /**
  * @brief 更新语句
  * @ingroup Statement
@@ -30,6 +37,7 @@ class UpdateStmt : public Stmt
 public:
   UpdateStmt() = default;
   UpdateStmt(Table *table, const Value *values, int value_amount, const FieldMeta* meta, FilterStmt* filter);
+  UpdateStmt(Table *table, FilterStmt* filter ,std::vector<std::unique_ptr<AssignmentUnit>>&& assignments);
   StmtType type() const override {return StmtType::UPDATE;}
 public:
   static RC create(Db *db, UpdateSqlNode &update_sql, Stmt *&stmt);
@@ -40,10 +48,12 @@ public:
   int    value_amount() const { return value_amount_; }
   const FieldMeta * field_meta () const {return field_meta_; }
   FilterStmt * filter() {return filter_;}
+  std::vector<std::unique_ptr<AssignmentUnit>>& assignments() { return assignments_; }
 private:
   Table *table_        = nullptr;
   const Value *values_       = nullptr;
   int    value_amount_ = 0;
   const FieldMeta *field_meta_;
   FilterStmt *filter_;
+  std::vector<std::unique_ptr<AssignmentUnit>> assignments_;
 };

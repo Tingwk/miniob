@@ -87,6 +87,7 @@ UnboundAggregateExpr *create_aggregate_expression(const char *aggregate_name,
         TRX_ROLLBACK
         INT_T
         DATE_T
+        TEXT_T
         INNER 
         JOIN
         STRING_T
@@ -140,6 +141,8 @@ UnboundAggregateExpr *create_aggregate_expression(const char *aggregate_name,
   std::vector<OrderBySqlNode>*               order_by_list;
   std::vector<Value> *                       value_list;
   std::vector<ConditionSqlNode> *            condition_list;
+  Assignment*                                assignment_type;
+  std::vector<Assignment>*                   assignment_list_type;
   std::vector<RelAttrSqlNode> *              rel_attr_list;
   std::vector<std::string>*                  id_list_type;
 //  std::vector<std::string> *                 relation_list;
@@ -178,6 +181,8 @@ UnboundAggregateExpr *create_aggregate_expression(const char *aggregate_name,
 %type <condition_list>      condition_list
 %type <condition_list>      subquery_value_list
 %type <condition_list>      on_conditions
+%type <assignment_list_type>assignment_stmt_list
+%type <assignment_type>     assignment_stmt
 %type <string>              storage_format
 %type <relation_list>       rel_list
 %type <expression>          expression
@@ -542,20 +547,54 @@ delete_stmt:    /*  delete 语句的语法解析树*/
     }
     ;
 update_stmt:      /*  update 语句的语法解析树*/
-    UPDATE ID SET ID EQ value_with_null where 
+    UPDATE ID SET assignment_stmt_list where 
     {
       $$ = new ParsedSqlNode(SCF_UPDATE);
       $$->update.relation_name = $2;
-      $$->update.attribute_name = $4;
-      $$->update.value = *$6;
-      if ($7 != nullptr) {
-        $$->update.conditions.swap(*$7);
-        delete $7;
+      $$->update.assignments.swap(*$4);
+      
+      if ($5 != nullptr) {
+        $$->update.conditions.swap(*$5);
+        delete $5;
       }
+      delete $4;
       free($2);
-      free($4);
     }
     ;
+assignment_stmt_list:
+  assignment_stmt {
+    $$ = new std::vector<Assignment>;
+    $$->emplace_back(*$1);
+    delete $1;
+  }
+  | assignment_stmt COMMA assignment_stmt_list {
+    $$ = $3;
+    $$->emplace($$->begin(), *$1);
+    delete $1;
+  }
+  ;
+assignment_stmt:
+  ID EQ value_with_null {
+    $$ = new Assignment;
+    $$->value = *$3;
+    delete $3;
+    if ($$->value.attr_type() == AttrType::NULLS) {
+      $$->type = ValueType::NULL_TYPE;
+    } else {
+      $$->type = ValueType::CONSTANT;
+    }
+    $$->attribute_name = $1;
+    free($1);
+  }
+  | ID EQ LBRACE select_stmt RBRACE {
+    $$ = new Assignment;
+    $$->sub_query = $4;
+    $$->type = ValueType::SUB_QUERY;
+    $$->attribute_name = $1;
+    free($1);
+  }
+  ;
+
 select_stmt:        /*  select 语句的语法解析树*/
     SELECT expression_list FROM ID rel_list where group_by order_by
     {

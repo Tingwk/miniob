@@ -295,8 +295,24 @@ RC LogicalPlanGenerator::create_plan(UpdateStmt* update_stmt, std::unique_ptr<Lo
     }
     last_oper = &predicate_oper;
   }
+  std::vector<std::unique_ptr<LogicalOperator>> sub_queries;
+  std::vector<std::unique_ptr<SubQueryLogicalExpr>> sub_query_logical_exprs; 
+  std::vector<size_t> indices;
+  size_t k = 0;
+  for (auto & unit : update_stmt->assignments()) {
+    if (unit->new_value_type == ValueType::SUB_QUERY) {
+      std::unique_ptr<LogicalOperator> query;
+      [[maybe_unused]]auto sub_selete_stmt = static_cast<SelectStmt*>(unit->sub_query);
+      create_plan(sub_selete_stmt, query);
+      indices.emplace_back(k);
+      std::unique_ptr<SubQueryLogicalExpr> logical_expr (new SubQueryLogicalExpr(std::move(query)));
+      logical_expr->set_with_table_name(sub_selete_stmt->tables().size() > 1);
+      sub_query_logical_exprs.emplace_back(std::move(logical_expr));
+    }
+    ++k;
+  }
   
-  UpdateLogicalOperator *update_oper = new UpdateLogicalOperator(update_stmt->table(), update_stmt->values(), update_stmt->value_amount(), update_stmt->field_meta());
+  UpdateLogicalOperator *update_oper = new UpdateLogicalOperator(update_stmt->table(), std::move(update_stmt->assignments()), std::move(indices), std::move(sub_query_logical_exprs), update_stmt->field_meta());
   update_oper->add_child(std::move(*last_oper));
   logical_operator.reset(update_oper);
   return RC::SUCCESS;

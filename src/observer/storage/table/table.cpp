@@ -476,8 +476,7 @@ RC Table::insert_entry_of_indexes(const char *record, const RID &rid) {
   return rc;
 }
 
-RC Table::delete_entry_of_indexes(const char *record, const RID &rid, bool error_on_not_exists)
-{
+RC Table::delete_entry_of_indexes(const char *record, const RID &rid, bool error_on_not_exists) {
   RC rc = RC::SUCCESS;
   for (Index *index : indexes_) {
     rc = index->delete_entry(record, &rid);
@@ -556,4 +555,25 @@ RC Table::sync() {
   rc = data_buffer_pool_->flush_all_pages();
   LOG_INFO("Sync table over. table=%s", name());
   return rc;
+}
+
+void Table::delete_entry_of_indexes(const char* record, const RID& rid, std::set<std::string>& cells_to_update) {
+  for (auto index : indexes_) {
+    for (auto field_name : index->index_meta().field()) {
+      if (cells_to_update.find(field_name) != cells_to_update.end()) {
+        index->delete_entry(record, &rid);
+        break;
+      }
+    }
+  }
+}
+
+void Table::insert_entry_of_indexes(const char* record, const RID& rid, std::set<std::string>& cells_to_update) {
+  for (auto index : indexes_) {
+    for (auto field_name : index->index_meta().field()) {
+      if (cells_to_update.find(field_name) != cells_to_update.end()) {
+        index->insert_entry(record, &rid);
+      }
+    }
+  }
 }

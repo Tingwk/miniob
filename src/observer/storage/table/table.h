@@ -32,6 +32,7 @@ class IndexScanner;
 class RecordDeleter;
 class Trx;
 class Db;
+class AssignmentUnit;
 
 /**
  * @brief 表
@@ -122,7 +123,8 @@ public:
   Index *find_index_by_field(const char *field_name) const;
   // e.g. index's key type:[id1,id2], then id2 is a part of index's key type.
   void update_indexes(const char *field_name, const Record& record, const FieldMeta* meta, const Value* new_value);
-
+  void delete_entry_of_indexes(const char* record, const RID& rid, std::set<std::string>& units);
+  void insert_entry_of_indexes(const char* record, const RID& rid, std::set<std::string>& cells_to_update);
 private:
   Db                *db_ = nullptr;
   string             base_dir_;

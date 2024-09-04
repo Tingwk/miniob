@@ -52,6 +52,7 @@ enum class ExprType
   AGGREGATION,  ///< 聚合运算
   SUB_QUERY_EXPR,
   VALUE_LIST_EXPR,
+  ASSIGNMENT_EXPR,
   SUB_QUERY_PHYSICAL_EXPR,
 };
 
