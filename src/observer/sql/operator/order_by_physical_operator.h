@@ -12,6 +12,8 @@ class OrderByPhysicalOperator : public PhysicalOperator {
   RC next() override;
   RC close() override;
   Tuple *current_tuple() override;
+private:
+  // bool check_whether_cells_null(Tuple* tuple, TupleSchema* schema);
  private:
   std::vector<int> offsets_;
   std::vector<std::unique_ptr<OrderByUnit>> units_;

@@ -6,6 +6,8 @@
 #include "sql/expr/tuple.h"
 
 #include <algorithm>
+
+
 RC OrderByPhysicalOperator::open(Trx* trx) {
   if (children_.size() != 1) {
     LOG_WARN("predicate operator must has one child");
@@ -57,6 +59,12 @@ RC OrderByPhysicalOperator::open(Trx* trx) {
       t1->cell_at(index, v1);
       t2->cell_at(index,v2);
       auto unit = this->units_[k].get();
+      if (v2.attr_type() == AttrType::NULLS) {
+        if (v1.attr_type() == v2.attr_type()) {
+          continue;
+        }
+        return unit->asc_ ? false : true;
+      }
       switch (v1.attr_type()) {
       case AttrType::INTS :
         result = common::compare_int((void*)(v1.data()), (void*)v2.data()); 
@@ -69,6 +77,13 @@ RC OrderByPhysicalOperator::open(Trx* trx) {
         break;
       case AttrType::CHARS:
         result = common::compare_string((void*)(v1.data()), unit->field_->len() , (void*)v2.data(), unit->field_->len());
+        break;
+      case AttrType::NULLS: 
+        if (v2.attr_type() == v1.attr_type()) {
+          result = 0;
+        } else {
+          return unit->asc_ ? true : false;
+        }
         break;
       default:
         // UNREACHABLE.
