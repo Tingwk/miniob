@@ -78,7 +78,11 @@ RC UpdatePhysicalOperator::next() {
           // mark cell is null
           *(static_cast<char*>(record.data() + offset + len) ) = 1; 
         } else {
-          std::memcpy((void*)(record.data() + offset), (void*)new_values_[k].data(), len);
+          auto value_len = new_values_[k].length();
+          std::memcpy((void*)(record.data() + offset), (void*)new_values_[k].data(), value_len);
+          if (value_len < len) {
+            std::memset((void*)(record.data() + offset + value_len), 0, len - value_len);
+          }
           if (meta->nullable()) {
             *(static_cast<char*>(record.data() + offset + len)) = 0; 
           }
