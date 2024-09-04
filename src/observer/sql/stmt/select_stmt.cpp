@@ -68,6 +68,7 @@ RC SelectStmt::create(Db *db, SelectSqlNode &select_sql, Stmt *&stmt) {
   vector<std::unique_ptr<Expression>> bound_expressions;
   ExpressionBinder expression_binder(binder_context);
   int i = 0;
+  
   std::vector<int> aggregation_indices;
   for (auto &expression : select_sql.expressions) {
     if (expression->type() == ExprType::ERROR_EXPR) {
@@ -94,6 +95,13 @@ RC SelectStmt::create(Db *db, SelectSqlNode &select_sql, Stmt *&stmt) {
       LOG_INFO("bind expression failed. rc=%s", strrc(rc));
       return rc;
     }
+    // if (expression->type() == ExprType::UNBOUND_FIELD) {
+    //   auto expr = static_cast<UnboundFieldExpr*>(expression.get());
+    //   if (!is_blank(expr->table_name())) {
+    //     string name = string(expr->table_name()) + "." + string(expr->field_name());
+    //     group_by_expressions[i]->set_name(name);
+    //   }
+    // }
     if (group_by_expressions[i]->type() == ExprType::FIELD) {
       gropy_columns.insert(static_cast<FieldExpr*>(group_by_expressions[i].get())->field_name());
     } 
