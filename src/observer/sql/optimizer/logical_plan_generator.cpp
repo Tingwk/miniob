@@ -28,6 +28,7 @@ See the Mulan PSL v2 for more details. */
 #include "sql/operator/group_by_logical_operator.h"
 #include "sql/operator/update_logical_operator.h"
 #include "sql/operator/order_by_logical_operator.h"
+#include "sql/operator/create_select_logical_operator.h"
 
 #include "sql/stmt/calc_stmt.h"
 #include "sql/stmt/delete_stmt.h"
@@ -38,6 +39,7 @@ See the Mulan PSL v2 for more details. */
 #include "sql/stmt/stmt.h"
 #include "sql/stmt/order_by_stmt.h"
 #include "sql/stmt/update_stmt.h"
+#include "sql/stmt/create_select_stmt.h"
 #include "sql/expr/expression_iterator.h"
 #include "sql/expr/sub_query_logical_expr.h"
 #include "sql/expr/sub_query_physical_expr.h"
@@ -89,12 +91,29 @@ RC LogicalPlanGenerator::create(Stmt *stmt, unique_ptr<LogicalOperator> &logical
 
       rc = create_plan(explain_stmt, logical_operator);
     } break;
+
+    case StmtType::CREATE_SELECT: {
+      auto cs_stmt = static_cast<CreateSelectStmt*>(stmt);
+      rc = create_plan(cs_stmt, logical_operator);
+    }
+
     default: {
       rc = RC::UNIMPLENMENT;
     }
   }
   return rc;
 }
+
+RC LogicalPlanGenerator::create_plan(CreateSelectStmt *cs_stmt, std::unique_ptr<LogicalOperator> &logical_operator) {
+  RC rc;
+  std::unique_ptr<LogicalOperator> query_oper;
+  if (rc = create(cs_stmt->query(), query_oper); rc != RC::SUCCESS) {
+    return rc;
+  }
+  auto cs_logical_oper = new CreateSelectLogicalOperator(cs_stmt->table_name(), cs_stmt->sub_query_table(), std::move(query_oper));
+  logical_operator.reset(cs_logical_oper);
+  return RC::SUCCESS;
+} 
 
 RC LogicalPlanGenerator::create_plan(OrderByStmt *order_stmt, std::unique_ptr<LogicalOperator> &logical_operator) {
   if (order_stmt != nullptr) {

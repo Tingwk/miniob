@@ -111,6 +111,7 @@ UnboundAggregateExpr *create_aggregate_expression(const char *aggregate_name,
         EQ
         ORDER
         ASC
+        AS
         LT
         GT
         LE
@@ -126,6 +127,7 @@ UnboundAggregateExpr *create_aggregate_expression(const char *aggregate_name,
         DATA_FORMAT
         null
         IS
+        HAVING
 
 /** union 中定义各种数据类型，真实生成的代码也是union类型，所以不能有非POD类型的数据 **/
 %union {
@@ -151,6 +153,7 @@ UnboundAggregateExpr *create_aggregate_expression(const char *aggregate_name,
   int                                        number;
   int *                                      number_ptr;
   float                                      floats;
+  //CreateSelectSqlNode*                        create_select;
 }
 
 %token <number> NUMBER
@@ -181,6 +184,7 @@ UnboundAggregateExpr *create_aggregate_expression(const char *aggregate_name,
 %type <condition_list>      condition_list
 %type <condition_list>      subquery_value_list
 %type <condition_list>      on_conditions
+%type <condition_list>      having_clause
 %type <assignment_list_type>assignment_stmt_list
 %type <assignment_type>     assignment_stmt
 %type <string>              storage_format
@@ -208,6 +212,7 @@ UnboundAggregateExpr *create_aggregate_expression(const char *aggregate_name,
 %type <sql_node>            set_variable_stmt
 %type <sql_node>            help_stmt
 %type <sql_node>            exit_stmt
+%type <sql_node>       create_select_stmt
 %type <sql_node>            command_wrapper
 // commands should be a list but I use a single command instead
 %type <sql_node>            commands
@@ -231,6 +236,7 @@ command_wrapper:
   | update_stmt
   | delete_stmt
   | create_table_stmt
+  | create_select_stmt
   | drop_table_stmt
   | show_tables_stmt
   | desc_table_stmt
@@ -386,6 +392,14 @@ create_table_stmt:    /*create table 语句的语法解析树*/
       }
     }
     ;
+create_select_stmt: 
+  CREATE TABLE ID AS select_stmt {
+    cout << "hello\n";
+    $$ = new ParsedSqlNode(SCF_CREATE_SELECT);
+    $$->create_select.relation_name = $3;
+    free($3);
+    $$->create_select.sub_query = $5;
+  };
 attr_def_list:
     /* empty */
     {
@@ -1101,11 +1115,21 @@ group_by:
     {
       $$ = nullptr;
     }
-    | GROUP BY expression_list {
+    | GROUP BY expression_list having_clause {
       $$ = $3;
+      
       /*delete $3;*/
     }
     ;
+having_clause:
+    /* empty */
+    {
+      // no having clause
+      $$ = nullptr;
+    }
+    | HAVING condition_list {
+      $$ = $2;
+    }
 order_by:
     /* empty */
     {

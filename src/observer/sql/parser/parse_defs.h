@@ -192,8 +192,7 @@ struct UpdateSqlNode
  * @ingroup SQLParser
  * @details 属性，或者说字段(column, field)
  */
-struct AttrInfoSqlNode
-{
+struct AttrInfoSqlNode {
   AttrType    type;    ///< Type of attribute
   bool nullable;
   std::string name;    ///< Attribute name
@@ -210,6 +209,11 @@ struct CreateTableSqlNode
   std::string                  relation_name;   ///< Relation name
   std::vector<AttrInfoSqlNode> attr_infos;      ///< attributes
   std::string                  storage_format;  ///< storage format
+};
+
+struct CreateSelectSqlNode {
+  std::string relation_name;
+  ParsedSqlNode* sub_query;
 };
 
 /**
@@ -318,6 +322,7 @@ enum SqlCommandFlag
   SCF_DELETE,
   SCF_CREATE_TABLE,
   SCF_DROP_TABLE,
+  SCF_CREATE_SELECT,
   SCF_CREATE_INDEX,
   SCF_DROP_INDEX,
   SCF_SYNC,
@@ -355,6 +360,7 @@ public:
   LoadDataSqlNode     load_data;
   ExplainSqlNode      explain;
   SetVariableSqlNode  set_variable;
+  CreateSelectSqlNode create_select;
 
 public:
   ParsedSqlNode();

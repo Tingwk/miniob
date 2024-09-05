@@ -28,6 +28,7 @@ class ExplainStmt;
 class LogicalOperator;
 class UpdateStmt;
 class OrderByStmt;
+class CreateSelectStmt;
 class UpdateLogicalOperator;
 
 class LogicalPlanGenerator
@@ -40,6 +41,7 @@ public:
 
 private:
   RC create_plan(CalcStmt *calc_stmt, std::unique_ptr<LogicalOperator> &logical_operator);
+  RC create_plan(CreateSelectStmt *calc_stmt, std::unique_ptr<LogicalOperator> &logical_operator);
   RC create_plan(SelectStmt *select_stmt, std::unique_ptr<LogicalOperator> &logical_operator);
   RC create_plan(FilterStmt *filter_stmt, std::unique_ptr<LogicalOperator> &logical_operator);
   RC create_plan(InsertStmt *insert_stmt, std::unique_ptr<LogicalOperator> &logical_operator);

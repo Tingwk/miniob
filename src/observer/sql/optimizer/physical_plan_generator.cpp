@@ -45,6 +45,8 @@ See the Mulan PSL v2 for more details. */
 #include "sql/operator/update_logical_operator.h"
 #include "sql/operator/update_physical_operator.h"
 #include "sql/optimizer/physical_plan_generator.h"
+#include "sql/operator/create_select_logical_operator.h"
+#include "sql/operator/create_select_physical_operator.h"
 
 #include "sql/operator/order_by_logical_operator.h"
 #include "sql/operator/order_by_physical_operator.h"
@@ -99,7 +101,11 @@ RC PhysicalPlanGenerator::create(LogicalOperator &logical_operator, unique_ptr<P
     } break;
     case LogicalOperatorType::UPDATE: {
       return create_plan(static_cast<UpdateLogicalOperator&> (logical_operator), oper);
-    }break;
+    } break;
+
+    case LogicalOperatorType::CREATE_SELECT: {
+      return create_plan(static_cast<CreateSelectLogicalOperator&>(logical_operator), oper);
+    } break;
 
     default: {
       ASSERT(false, "unknown logical operator type");
@@ -107,6 +113,19 @@ RC PhysicalPlanGenerator::create(LogicalOperator &logical_operator, unique_ptr<P
     }
   }
   return rc;
+}
+
+RC PhysicalPlanGenerator::create_plan(CreateSelectLogicalOperator &logical_oper, std::unique_ptr<PhysicalOperator> &oper) {
+  std::unique_ptr<PhysicalOperator> sub_query;
+  RC rc;
+  if (rc = create(*logical_oper.query(), sub_query); rc != RC::SUCCESS) {
+    LOG_WARN("create sub query physical plan failed");
+    return rc;
+  }
+  CreateSelectPhysicalOperator *cs_phy_oper = new CreateSelectPhysicalOperator(logical_oper.sub_query_table(), logical_oper.table_name());
+  cs_phy_oper->add_child(std::move(sub_query));
+  oper.reset(cs_phy_oper);
+  return RC::SUCCESS;
 }
 
 RC PhysicalPlanGenerator::create_vec(LogicalOperator &logical_operator, unique_ptr<PhysicalOperator> &oper)
