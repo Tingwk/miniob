@@ -5,7 +5,7 @@ class Table;
 class CreateSelectPhysicalOperator : public PhysicalOperator {
  public:
   CreateSelectPhysicalOperator(Table* table, const std::string& name) :suq_query_table_(table),new_table_name_(name) {}
-  RC close() override { return RC::SUCCESS;}
+  // RC close() override { return RC::SUCCESS;}
   PhysicalOperatorType type() const override { return PhysicalOperatorType::CREATE_SELECT; }
   RC open(Trx *trx) override;
   RC next() override;

@@ -69,7 +69,7 @@ RC SelectStmt::create(Db *db, SelectSqlNode &select_sql, Stmt *&stmt) {
   ExpressionBinder expression_binder(binder_context);
   int i = 0;
   
-  std::vector<int> aggregation_indices;
+  std::vector<int> field_indices;
   for (auto &expression : select_sql.expressions) {
     if (expression->type() == ExprType::ERROR_EXPR) {
       return RC::INTERNAL;
@@ -79,57 +79,49 @@ RC SelectStmt::create(Db *db, SelectSqlNode &select_sql, Stmt *&stmt) {
       LOG_INFO("bind expression failed. rc=%s", strrc(rc));
       return rc;
     }
-    if (bound_expressions[i]->type() == ExprType::AGGREGATION) {
+    if (bound_expressions[i]->type() == ExprType::FIELD) {
       has_aggregation = true;
-      aggregation_indices.push_back(i);
+      field_indices.push_back(i);
     }
     ++i;
   }
 
   vector<std::unique_ptr<Expression>> group_by_expressions;
-  set<std::string> gropy_columns;
-  i = 0;
-  for (std::unique_ptr<Expression> &expression : select_sql.group_by) {
+  
+  size_t valid_count{0};
+  // size_t field_count_in_gropy_by{0};
+  for (size_t k = 0; k < select_sql.group_by.size(); ++k) {
+    auto &expression = select_sql.group_by[k];
     RC rc = expression_binder.bind_expression(expression, group_by_expressions);
     if (OB_FAIL(rc)) {
       LOG_INFO("bind expression failed. rc=%s", strrc(rc));
       return rc;
     }
-    // if (expression->type() == ExprType::UNBOUND_FIELD) {
-    //   auto expr = static_cast<UnboundFieldExpr*>(expression.get());
-    //   if (!is_blank(expr->table_name())) {
-    //     string name = string(expr->table_name()) + "." + string(expr->field_name());
-    //     group_by_expressions[i]->set_name(name);
-    //   }
-    // }
-    if (group_by_expressions[i]->type() == ExprType::FIELD) {
-      gropy_columns.insert(static_cast<FieldExpr*>(group_by_expressions[i].get())->field_name());
+    if (expression->type() == ExprType::FIELD) {
+      auto field_expr = static_cast<FieldExpr*>(expression.get());
+      bool equal {false};
+      for(auto idx : field_indices) {
+        auto field_in_select = static_cast<FieldExpr*>(bound_expressions[idx].get());
+        if ((0 == strcmp(field_expr->table_name(), field_in_select->table_name())) &&
+            (0 == strcmp(field_expr->field_name(), field_in_select->field_name()))) {
+              equal = true;
+              break;
+            }
+      }
+      if (!equal) {
+        // example: select t1.id,count(*) from t1,t2 group by t2.id;
+        return RC::INTERNAL;
+      }
+      ++valid_count; 
     } 
-    ++i;
   }
 
   Table *default_table = nullptr;
   if (tables.size() == 1) {
     default_table = tables[0];
   }
-  size_t valid_count{0};
-  if (has_aggregation) {
-    for (std::unique_ptr<Expression>& expr: bound_expressions) {
-      if (expr->type() == ExprType::FIELD) {
-        if (group_by_expressions.empty()) {
-          // i.e. select id,count(id) from table;
-          return RC::INTERNAL;
-        }
-        auto field_expr = static_cast<FieldExpr*>(expr.get());
-        if (gropy_columns.find(field_expr->field_name()) == gropy_columns.end()) {
-          // field_name doesn't appear in group by clause.
-          return RC::INTERNAL;
-        }
-        ++valid_count;
-      }
-    }
-  }
-  if (valid_count > 0 && valid_count != gropy_columns.size()) {
+
+  if (!select_sql.group_by.empty() && valid_count != field_indices.size()) {
     // valid_count > 0 means select expressions contain column(s).
     // The result of query `select id1, count(*) from table group by a,b` means nothing;
     return RC::INTERNAL;

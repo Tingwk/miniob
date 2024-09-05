@@ -1,6 +1,7 @@
 #pragma once
 #include "sql/stmt/stmt.h"
 class SelectStmt;
+class Table;
 class CreateSelectStmt : public Stmt {
  public:
   CreateSelectStmt(const std::string&name,Table* tb, Stmt* query):tb_name_(name), sub_query_table_(tb), query_(query) {}

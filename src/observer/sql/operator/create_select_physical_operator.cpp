@@ -14,7 +14,7 @@ RC CreateSelectPhysicalOperator::open(Trx* trx) {
   }
   // create table.
   auto table_meta = suq_query_table_->table_meta();
-  TupleSchema *schema = children_[0]->schema();
+  // TupleSchema *schema = children_[0]->schema();
   std::vector<AttrInfoSqlNode> infos(table_meta.field_num());
   auto field_metas = *(table_meta.field_metas());
   for (size_t k = 0; k < field_metas.size(); ++k) {
@@ -38,7 +38,7 @@ RC CreateSelectPhysicalOperator::next() {
   if (table == nullptr) {
     return RC::INTERNAL;
   }
-  auto schema = children_[0]->schema();
+  // auto schema = children_[0]->schema();
   while ((rc = children_[0]->next()) == RC::SUCCESS) {
     
   }
