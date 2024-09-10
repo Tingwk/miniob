@@ -38,7 +38,7 @@ RC IndexMeta::init(const char *name, std::vector<const FieldMeta *>& metas, bool
 
 void IndexMeta::to_json(Json::Value &json_value) const {
   json_value[FIELD_NAME]       = name_;
-  json_value[UNIQUE_INDEX] = unique_ ? "true" : "false";
+  json_value[UNIQUE_INDEX] = unique_;
   Json::Value val;
   for(auto field : fields_) {
     Json::Value v(field);
@@ -55,8 +55,8 @@ RC IndexMeta::from_json(const TableMeta &table, const Json::Value &json_value, I
     LOG_ERROR("Index name is not a string. json value=%s", name_value.toStyledString().c_str());
     return RC::INTERNAL;
   }
-  if (!unique.isString()) {
-    LOG_ERROR("unique index is not a string. json value=%s", unique.toStyledString().c_str());
+  if (!unique.isBool()) {
+    LOG_ERROR("unique index is not a boolean. json value=%s", unique.toStyledString().c_str());
     return RC::INTERNAL;
   }
   if (!fields_value.isArray() || fields_value.size() <= 0) {
@@ -75,7 +75,7 @@ RC IndexMeta::from_json(const TableMeta &table, const Json::Value &json_value, I
     }
     fields.emplace_back(field);
   }
-  bool unique_index = (0 == strcmp(unique.asCString(), "true")); 
+  bool unique_index = unique.asBool();
   return index.init(name_value.asCString(), fields, unique_index);
 }
 

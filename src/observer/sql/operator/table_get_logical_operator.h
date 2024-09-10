@@ -22,8 +22,7 @@ See the Mulan PSL v2 for more details. */
  * @details 比如使用全表扫描、通过索引获取数据等
  * @ingroup LogicalOperator
  */
-class TableGetLogicalOperator : public LogicalOperator
-{
+class TableGetLogicalOperator : public LogicalOperator {
 public:
   TableGetLogicalOperator(Table *table, ReadWriteMode mode);
   virtual ~TableGetLogicalOperator() = default;

@@ -813,13 +813,11 @@ RC BplusTreeHandler::create(LogHandler &log_handler,
   IndexFileHeader *file_header   = (IndexFileHeader *)pdata;
   file_header->attr_length       = attr_length;
   file_header->key_length        = attr_length + sizeof(RID);
-  file_header->attr_nums = attr_types.size();
-  // file_header->attr_types        = std::move(attr_types);
-  // file_header->off_and_sizes    = std::move(off_and_sizes);
+  file_header->attr_nums         = attr_types.size();
   file_header->internal_max_size = internal_max_size;
   file_header->leaf_max_size     = leaf_max_size;
   file_header->root_page         = BP_INVALID_PAGE_NUM;
-  file_header->unique_index = (unique_ ? 1 : 0);
+  file_header->unique_index      = (unique_ ? 1 : 0);
   pdata += 7 * sizeof(int32_t);
   for (size_t i = 0; i < attr_types.size(); i++) {
     *reinterpret_cast<AttrType*>(pdata) = attr_types[i];

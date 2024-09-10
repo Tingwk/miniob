@@ -33,11 +33,16 @@ class Expression;
  * Rel -> Relation
  * Attr -> Attribute
  */
-struct RelAttrSqlNode
-{
+struct RelAttrSqlNode {
   std::string relation_name;   ///< relation name (may be NULL) 表名
   std::string attribute_name;  ///< attribute name              属性名
 };
+enum class FunctionType {
+  DATE_FORMAT,
+  LENGTH,
+  ROUND,
+};
+
 
 /**
  * @brief 描述比较运算符

@@ -21,8 +21,7 @@ See the Mulan PSL v2 for more details. */
  * @brief 选择/投影物理算子
  * @ingroup PhysicalOperator
  */
-class ProjectPhysicalOperator : public PhysicalOperator
-{
+class ProjectPhysicalOperator : public PhysicalOperator {
 public:
   ProjectPhysicalOperator(std::vector<std::unique_ptr<Expression>> &&expressions);
 
@@ -39,6 +38,7 @@ public:
   Tuple *current_tuple() override;
   void add_projection(const Table *table, const FieldMeta *field_meta);
   RC tuple_schema(TupleSchema &schema) const override;
+  const std::vector<std::unique_ptr<Expression>>& expressions() const { return expressions_; }
 
 private:
   std::vector<std::unique_ptr<Expression>>     expressions_;

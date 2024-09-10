@@ -17,13 +17,8 @@ RC CreateSelectStmt::create(Db *db, CreateSelectSqlNode& cs, Stmt* &stmt) {
     LOG_WARN("cannot create sub query in func: CreateSelectStmt::create(Db *db, CreateSelectSqlNode& cs, Stmt* stmt)");
     return rc;
   }
-  auto select_stmt =  static_cast<SelectStmt*>(sub_query_stmt);
-  if (select_stmt->tables().size() != 1) {
-    LOG_WARN("create select's subquery shall reference only one relation");
-    return RC::INTERNAL;
-  }
-  // std::vector<AttrInfoSqlNode> infos;
-  // for
-  stmt = new CreateSelectStmt(cs.relation_name, select_stmt->tables()[0], sub_query_stmt);
+  // auto select_stmt = static_cast<SelectStmt*>(sub_query_stmt);
+  
+  stmt = new CreateSelectStmt(cs.relation_name, sub_query_stmt);
   return RC::SUCCESS;
 }

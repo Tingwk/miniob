@@ -42,7 +42,7 @@ RC SelectStmt::create(Db *db, SelectSqlNode &select_sql, Stmt *&stmt) {
   }
 
   BinderContext binder_context;
-  bool has_aggregation {false};
+  // bool has_aggregation {false};
   // collect tables in `from` statement
   vector<Table *>                tables;
   unordered_map<string, Table *> table_map;
@@ -80,7 +80,7 @@ RC SelectStmt::create(Db *db, SelectSqlNode &select_sql, Stmt *&stmt) {
       return rc;
     }
     if (bound_expressions[i]->type() == ExprType::FIELD) {
-      has_aggregation = true;
+      // has_aggregation = true;
       field_indices.push_back(i);
     }
     ++i;
@@ -97,8 +97,8 @@ RC SelectStmt::create(Db *db, SelectSqlNode &select_sql, Stmt *&stmt) {
       LOG_INFO("bind expression failed. rc=%s", strrc(rc));
       return rc;
     }
-    if (expression->type() == ExprType::FIELD) {
-      auto field_expr = static_cast<FieldExpr*>(expression.get());
+    if (group_by_expressions[k]->type() == ExprType::FIELD) {
+      auto field_expr = static_cast<FieldExpr*>(group_by_expressions[k].get());
       bool equal {false};
       for(auto idx : field_indices) {
         auto field_in_select = static_cast<FieldExpr*>(bound_expressions[idx].get());

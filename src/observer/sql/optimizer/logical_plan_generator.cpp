@@ -48,8 +48,7 @@ See the Mulan PSL v2 for more details. */
 using namespace std;
 using namespace common;
 
-RC LogicalPlanGenerator::create(Stmt *stmt, unique_ptr<LogicalOperator> &logical_operator)
-{
+RC LogicalPlanGenerator::create(Stmt *stmt, unique_ptr<LogicalOperator> &logical_operator) {
   RC rc = RC::SUCCESS;
   switch (stmt->type()) {
     case StmtType::CALC: {
@@ -95,7 +94,7 @@ RC LogicalPlanGenerator::create(Stmt *stmt, unique_ptr<LogicalOperator> &logical
     case StmtType::CREATE_SELECT: {
       auto cs_stmt = static_cast<CreateSelectStmt*>(stmt);
       rc = create_plan(cs_stmt, logical_operator);
-    }
+    } break;
 
     default: {
       rc = RC::UNIMPLENMENT;
@@ -110,7 +109,7 @@ RC LogicalPlanGenerator::create_plan(CreateSelectStmt *cs_stmt, std::unique_ptr<
   if (rc = create(cs_stmt->query(), query_oper); rc != RC::SUCCESS) {
     return rc;
   }
-  auto cs_logical_oper = new CreateSelectLogicalOperator(cs_stmt->table_name(), cs_stmt->sub_query_table(), std::move(query_oper));
+  auto cs_logical_oper = new CreateSelectLogicalOperator(cs_stmt->table_name(), std::move(query_oper));
   logical_operator.reset(cs_logical_oper);
   return RC::SUCCESS;
 } 

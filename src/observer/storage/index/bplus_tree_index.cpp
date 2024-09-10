@@ -21,8 +21,7 @@ BplusTreeIndex::~BplusTreeIndex() noexcept { close(); }
 
 RC BplusTreeIndex::create(Table *table, const char *file_name, const IndexMeta &index_meta, std::vector<const FieldMeta*> &fields_meta, bool unique_index) {
   if (inited_) {
-    LOG_WARN("Failed to create index due to the index has been created before. file_name:%s, index:%s, field:%ld",
-        file_name, index_meta.name(), index_meta.field().size());
+    LOG_WARN("Failed to create index due to the index has been created before. file_name:%s, index:%s, field:%ld", file_name, index_meta.name(), index_meta.field().size());
     return RC::RECORD_OPENNED;
   }
 

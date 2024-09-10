@@ -122,7 +122,8 @@ RC PhysicalPlanGenerator::create_plan(CreateSelectLogicalOperator &logical_oper,
     LOG_WARN("create sub query physical plan failed");
     return rc;
   }
-  CreateSelectPhysicalOperator *cs_phy_oper = new CreateSelectPhysicalOperator(logical_oper.sub_query_table(), logical_oper.table_name());
+  
+  CreateSelectPhysicalOperator *cs_phy_oper = new CreateSelectPhysicalOperator(session_ ,logical_oper.table_name());
   cs_phy_oper->add_child(std::move(sub_query));
   oper.reset(cs_phy_oper);
   return RC::SUCCESS;

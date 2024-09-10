@@ -24,9 +24,7 @@ RC CreateIndexExecutor::execute(SQLStageEvent *sql_event)
 {
   Stmt    *stmt    = sql_event->stmt();
   Session *session = sql_event->session_event()->session();
-  ASSERT(stmt->type() == StmtType::CREATE_INDEX,
-      "create index executor can not run this command: %d",
-      static_cast<int>(stmt->type()));
+  ASSERT(stmt->type() == StmtType::CREATE_INDEX, "create index executor can not run this command: %d",static_cast<int>(stmt->type()));
 
   CreateIndexStmt *create_index_stmt = static_cast<CreateIndexStmt *>(stmt);
 

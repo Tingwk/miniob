@@ -53,6 +53,7 @@ enum class ExprType
   SUB_QUERY_EXPR,
   VALUE_LIST_EXPR,
   ASSIGNMENT_EXPR,
+  FUNCTION_EXPR,
   SUB_QUERY_PHYSICAL_EXPR,
 };
 
@@ -507,6 +508,23 @@ public:
   ExprType type() const override { return ExprType::ERROR_EXPR; }
 };
 
+class FunctionExpr : public Expression {
+public:
+  FunctionExpr() = default;
+  FunctionExpr(FunctionType type, const Value& v) : function_type_(type), input_(v) {}
+  virtual ~FunctionExpr() = default;
+  ExprType type() const override { return ExprType::FUNCTION_EXPR; }
+  AttrType value_type() const override {
+    if (function_type_ == FunctionType::LENGTH || function_type_ == FunctionType::DATE_FORMAT) {
+      return AttrType::INTS;
+    } else if (function_type_ == FunctionType::ROUND) {
+      return AttrType::FLOATS;
+    }
+  }
+private:
+  FunctionType function_type_;
+  Value input_;
+};
 
 static Expression* expression_factory(Expression *expr) {
     switch (expr->type()) {

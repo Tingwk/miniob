@@ -115,7 +115,7 @@ extern int yydebug;
     UNIQUE = 316,                  /* UNIQUE  */
     ROUND = 317,                   /* ROUND  */
     LENGTH = 318,                  /* LENGTH  */
-    DATA_FORMAT = 319,             /* DATA_FORMAT  */
+    DATE_FORMAT = 319,             /* DATE_FORMAT  */
     null = 320,                    /* null  */
     IS = 321,                      /* IS  */
     HAVING = 322,                  /* HAVING  */
@@ -149,8 +149,10 @@ union YYSTYPE
   Assignment*                                assignment_type;
   std::vector<Assignment>*                   assignment_list_type;
   std::vector<RelAttrSqlNode> *              rel_attr_list;
+  //FunctionType                               function_type;
+  //FunctionExpr *                             function_expr;
   std::vector<std::string>*                  id_list_type;
-//  std::vector<std::string> *                 relation_list;
+//  std::vector<std::string> *               relation_list;
   RelListSqlNode*                            relation_list;
   char *                                     string;
   int                                        number;
@@ -158,7 +160,7 @@ union YYSTYPE
   float                                      floats;
   //CreateSelectSqlNode*                        create_select;
 
-#line 162 "yacc_sql.hpp"
+#line 164 "yacc_sql.hpp"
 
 };
 typedef union YYSTYPE YYSTYPE;

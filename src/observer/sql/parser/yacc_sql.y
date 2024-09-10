@@ -124,7 +124,7 @@ UnboundAggregateExpr *create_aggregate_expression(const char *aggregate_name,
         UNIQUE
         ROUND
         LENGTH
-        DATA_FORMAT
+        DATE_FORMAT
         null
         IS
         HAVING
@@ -146,8 +146,10 @@ UnboundAggregateExpr *create_aggregate_expression(const char *aggregate_name,
   Assignment*                                assignment_type;
   std::vector<Assignment>*                   assignment_list_type;
   std::vector<RelAttrSqlNode> *              rel_attr_list;
+  //FunctionType                               function_type;
+  //FunctionExpr *                             function_expr;
   std::vector<std::string>*                  id_list_type;
-//  std::vector<std::string> *                 relation_list;
+//  std::vector<std::string> *               relation_list;
   RelListSqlNode*                            relation_list;
   char *                                     string;
   int                                        number;
@@ -178,6 +180,8 @@ UnboundAggregateExpr *create_aggregate_expression(const char *aggregate_name,
 %type <number_ptr>          null_def
 %type <value_list>          value_list
 %type <value_list>          value_with_null_list
+//%type <function_expr>       function_expression
+//%type <function_type>       function
 %type <condition_list>      where
 %type <order_by_list>       order_by
 %type <order_by_list>       order_list
@@ -300,6 +304,7 @@ show_tables_stmt:
       $$ = new ParsedSqlNode(SCF_SHOW_TABLES);
     }
     ;
+
 
 desc_table_stmt:
     DESC ID  {
@@ -714,6 +719,16 @@ expression_list:
     }
     
     ;
+/*
+all_expression:
+  expression {
+
+  }
+  | function_expression {
+    
+  }
+  ;
+*/
 expression:
     expression '+' expression {
       $$ = create_arithmetic_expression(ArithmeticExpr::Type::ADD, $1, $3, sql_string, &@$);
@@ -753,10 +768,37 @@ expression:
     | '*' {
       $$ = new StarExpr();
     }
+    
     // your code here
     
     ;
+/*
+function_expression:
+    function LBRACE value RBRACE {
+      $$ = new FunctionExpr($1, *$3);
+      delete $3;
+    }
+    | function LBRACE rel_attr RBRACE {
+      std::string str = $3->relation_name + "." + $3->attribute_name;
+      Value input;
+      input.set_string(str.c_str(), str.size());
+      $$ = new FunctionExpr($1, input);
+      delete $3;
+    }
+    ;
 
+function:
+    DATE_FORMAT {
+      $$ = FunctionType::DATE_FORMAT;
+    }
+    | LENGTH {
+      $$ = FunctionType::LENGTH;
+    }
+    | ROUND {
+      $$ = FunctionType::ROUND;
+    }
+    ;
+*/
 rel_attr:
     ID {
       std::cout << $1<<'\n';

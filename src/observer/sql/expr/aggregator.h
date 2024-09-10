@@ -30,8 +30,7 @@ protected:
   uint32_t count_{0};
 };
 
-class SumAggregator : public Aggregator
-{
+class SumAggregator : public Aggregator {
 public:
   RC accumulate(const Value &value) override;
   RC evaluate(Value &result) override;

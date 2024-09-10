@@ -789,8 +789,7 @@ RC AggregateExpr::get_value(const Tuple &tuple, Value &value) const
   return tuple.find_cell(TupleCellSpec(name()), value);
 }
 
-RC AggregateExpr::type_from_string(const char *type_str, AggregateExpr::Type &type)
-{
+RC AggregateExpr::type_from_string(const char *type_str, AggregateExpr::Type &type) {
   RC rc = RC::SUCCESS;
   if (0 == strcasecmp(type_str, "count")) {
     type = Type::COUNT;

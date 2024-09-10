@@ -30,6 +30,7 @@ class GroupByLogicalOperator;
 class UpdateLogicalOperator;
 class OrderByLogicalOperator;
 class CreateSelectLogicalOperator;
+class Session;
 
 /**
  * @brief 物理计划生成器
@@ -44,6 +45,7 @@ public:
 
   RC create(LogicalOperator &logical_operator, std::unique_ptr<PhysicalOperator> &oper);
   RC create_vec(LogicalOperator &logical_operator, std::unique_ptr<PhysicalOperator> &oper);
+  void set_session(Session* session) { session_ = session; }
 
 private:
   RC create_plan(CreateSelectLogicalOperator &logical_oper, std::unique_ptr<PhysicalOperator> &oper);
@@ -62,4 +64,6 @@ private:
   RC create_vec_plan(TableGetLogicalOperator &logical_oper, std::unique_ptr<PhysicalOperator> &oper);
   RC create_vec_plan(GroupByLogicalOperator &logical_oper, std::unique_ptr<PhysicalOperator> &oper);
   RC create_vec_plan(ExplainLogicalOperator &logical_oper, std::unique_ptr<PhysicalOperator> &oper);
+private:
+  Session *session_;
 };

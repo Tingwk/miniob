@@ -77,6 +77,7 @@ RC OptimizeStage::generate_physical_plan(
     unique_ptr<LogicalOperator> &logical_operator, unique_ptr<PhysicalOperator> &physical_operator, Session *session)
 {
   RC rc = RC::SUCCESS;
+  physical_plan_generator_.set_session(session);
   if (session->get_execution_mode() == ExecutionMode::CHUNK_ITERATOR && LogicalOperator::can_generate_vectorized_operator(logical_operator->type())) {
     LOG_INFO("use chunk iterator");
     session->set_used_chunk_mode(true);

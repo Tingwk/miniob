@@ -20,12 +20,9 @@ See the Mulan PSL v2 for more details. */
 using namespace std;
 
 ProjectPhysicalOperator::ProjectPhysicalOperator(vector<unique_ptr<Expression>> &&expressions)
-  : expressions_(std::move(expressions)), tuple_(expressions_)
-{
-}
+  : expressions_(std::move(expressions)), tuple_(expressions_) {}
 
-RC ProjectPhysicalOperator::open(Trx *trx)
-{
+RC ProjectPhysicalOperator::open(Trx *trx) {
   if (children_.empty()) {
     return RC::SUCCESS;
   }
@@ -40,29 +37,25 @@ RC ProjectPhysicalOperator::open(Trx *trx)
   return RC::SUCCESS;
 }
 
-RC ProjectPhysicalOperator::next()
-{
+RC ProjectPhysicalOperator::next() {
   if (children_.empty()) {
     return RC::RECORD_EOF;
   }
   return children_[0]->next();
 }
 
-RC ProjectPhysicalOperator::close()
-{
+RC ProjectPhysicalOperator::close() {
   if (!children_.empty()) {
     children_[0]->close();
   }
   return RC::SUCCESS;
 }
-Tuple *ProjectPhysicalOperator::current_tuple()
-{
+Tuple *ProjectPhysicalOperator::current_tuple() {
   tuple_.set_tuple(children_[0]->current_tuple());
   return &tuple_;
 }
 
 RC ProjectPhysicalOperator::tuple_schema(TupleSchema &schema) const {
-  
   for (const unique_ptr<Expression> &expression : expressions_) {
     if (with_table_name_ && expression->type() == ExprType::FIELD) {
       auto field_expr = static_cast<FieldExpr*>(expression.get());

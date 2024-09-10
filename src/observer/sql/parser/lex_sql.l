@@ -90,7 +90,7 @@ DROP                                    RETURN_TOKEN(DROP);
 TABLE                                   RETURN_TOKEN(TABLE);
 LENGTH                                  RETURN_TOKEN(LENGTH);
 ROUND                                   RETURN_TOKEN(ROUND);
-DATA_FORMAT                             RETURN_TOKEN(DATA_FORMAT);
+DATE_FORMAT                             RETURN_TOKEN(DATE_FORMAT);
 UNIQUE                                  RETURN_TOKEN(UNIQUE);
 null                                    RETURN_TOKEN(null);
 TABLES                                  RETURN_TOKEN(TABLES);

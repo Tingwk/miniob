@@ -355,8 +355,7 @@ RC Table::create_index(Trx *trx, std::vector<const FieldMeta *>& field_metas, co
 
   RC rc = new_index_meta.init(index_name, field_metas, unique_index);
   if (rc != RC::SUCCESS) {
-    LOG_INFO("Failed to init IndexMeta in table:%s, index_name:%s", 
-             name(), index_name);
+    LOG_INFO("Failed to init IndexMeta in table:%s, index_name:%s", name(), index_name);
     return rc;
   }
 
@@ -375,8 +374,7 @@ RC Table::create_index(Trx *trx, std::vector<const FieldMeta *>& field_metas, co
   RecordFileScanner scanner;
   rc = get_record_scanner(scanner, trx, ReadWriteMode::READ_ONLY);
   if (rc != RC::SUCCESS) {
-    LOG_WARN("failed to create scanner while creating index. table=%s, index=%s, rc=%s", 
-             name(), index_name, strrc(rc));
+    LOG_WARN("failed to create scanner while creating index. table=%s, index=%s, rc=%s", name(), index_name, strrc(rc));
     return rc;
   }
 
@@ -384,16 +382,14 @@ RC Table::create_index(Trx *trx, std::vector<const FieldMeta *>& field_metas, co
   while (OB_SUCC(rc = scanner.next(record))) {
     rc = index->insert_entry(record.data(), &record.rid());
     if (rc != RC::SUCCESS) {
-      LOG_WARN("failed to insert record into index while creating index. table=%s, index=%s, rc=%s",
-               name(), index_name, strrc(rc));
+      LOG_WARN("failed to insert record into index while creating index. table=%s, index=%s, rc=%s",name(), index_name, strrc(rc));
       return rc;
     }
   }
   if (RC::RECORD_EOF == rc) {
     rc = RC::SUCCESS;
   } else {
-    LOG_WARN("failed to insert record into index while creating index. table=%s, index=%s, rc=%s",
-             name(), index_name, strrc(rc));
+    LOG_WARN("failed to insert record into index while creating index. table=%s, index=%s, rc=%s", name(), index_name, strrc(rc));
     return rc;
   }
   scanner.close_scan();
