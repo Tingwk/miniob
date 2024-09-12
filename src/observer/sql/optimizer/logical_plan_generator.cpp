@@ -109,7 +109,7 @@ RC LogicalPlanGenerator::create_plan(CreateSelectStmt *cs_stmt, std::unique_ptr<
   if (rc = create(cs_stmt->query(), query_oper); rc != RC::SUCCESS) {
     return rc;
   }
-  auto cs_logical_oper = new CreateSelectLogicalOperator(cs_stmt->table_name(), std::move(query_oper));
+  auto cs_logical_oper = new CreateSelectLogicalOperator(cs_stmt->table_name(), std::move(query_oper), cs_stmt->using_infos(), cs_stmt->infos());
   logical_operator.reset(cs_logical_oper);
   return RC::SUCCESS;
 } 

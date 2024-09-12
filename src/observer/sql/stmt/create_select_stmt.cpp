@@ -17,8 +17,6 @@ RC CreateSelectStmt::create(Db *db, CreateSelectSqlNode& cs, Stmt* &stmt) {
     LOG_WARN("cannot create sub query in func: CreateSelectStmt::create(Db *db, CreateSelectSqlNode& cs, Stmt* stmt)");
     return rc;
   }
-  // auto select_stmt = static_cast<SelectStmt*>(sub_query_stmt);
-  
-  stmt = new CreateSelectStmt(cs.relation_name, sub_query_stmt);
+  stmt = new CreateSelectStmt(cs.relation_name, sub_query_stmt, cs.using_infos, std::move(cs.attr_infos));
   return RC::SUCCESS;
 }

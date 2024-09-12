@@ -19,40 +19,42 @@ RC CreateSelectPhysicalOperator::open(Trx* trx) {
   auto proj_phy_oper = static_cast<ProjectPhysicalOperator*>(children_[0].get());
   proj_phy_oper->tuple_schema(schema_);
   auto &expressions = proj_phy_oper->expressions();
-  std::vector<AttrInfoSqlNode> infos;
-  for (size_t k = 0; k < expressions.size();++k) {
-    auto expre = expressions[k].get();
-    AttrInfoSqlNode attr;
-    if (expre->type() == ExprType::FIELD) {
-      auto field_expr = static_cast<FieldExpr*>(expre);
-      auto field = field_expr->field().meta();
-      attr.length = field->len();
-      attr.name = field->name();
-      attr.nullable = field->nullable();
-      attr.type = field->type();
-    } else if (expre->type() == ExprType::AGGREGATION) {
-      auto aggre_expr = static_cast<AggregateExpr*>(expre);
-      // attr.length = ;
-      if ((aggre_expr->aggregate_type() == AggregateExpr::Type::MAX || aggre_expr->aggregate_type() == AggregateExpr::Type::MIN) && aggre_expr->value_type() == AttrType::CHARS) {
-        attr.length = aggre_expr->value_length();
-      } else  {
-        attr.length = 4;
+  // std::vector<AttrInfoSqlNode> infos;
+  if (!using_infos_) {
+    for (size_t k = 0; k < expressions.size();++k) {
+      auto expre = expressions[k].get();
+      AttrInfoSqlNode attr;
+      if (expre->type() == ExprType::FIELD) {
+        auto field_expr = static_cast<FieldExpr*>(expre);
+        auto field = field_expr->field().meta();
+        attr.length = field->len();
+        attr.name = field->name();
+        attr.nullable = field->nullable();
+        attr.type = field->type();
+      } else if (expre->type() == ExprType::AGGREGATION) {
+        auto aggre_expr = static_cast<AggregateExpr*>(expre);
+        // attr.length = ;
+        if ((aggre_expr->aggregate_type() == AggregateExpr::Type::MAX || aggre_expr->aggregate_type() == AggregateExpr::Type::MIN) && aggre_expr->value_type() == AttrType::CHARS) {
+          attr.length = aggre_expr->value_length();
+        } else  {
+          attr.length = 4;
+        }
+        attr.type = aggre_expr->value_type();
+        if (aggre_expr->aggregate_type() == AggregateExpr::Type::COUNT) {
+          attr.type = AttrType::INTS;
+        } else if (aggre_expr->aggregate_type() == AggregateExpr::Type::AVG) {
+          attr.type = AttrType::FLOATS;
+        }
+        // attr.type = aggre_expr->value_type();
+        attr.nullable = true;
+        attr.name = aggre_expr->name();
+      } else {
+        // ...
       }
-      attr.type = aggre_expr->value_type();
-      if (aggre_expr->aggregate_type() == AggregateExpr::Type::COUNT) {
-        attr.type = AttrType::INTS;
-      } else if (aggre_expr->aggregate_type() == AggregateExpr::Type::AVG) {
-        attr.type = AttrType::FLOATS;
-      }
-      // attr.type = aggre_expr->value_type();
-      attr.nullable = true;
-      attr.name = aggre_expr->name();
-    } else {
-      // ...
+      infos_.emplace_back(attr);
     }
-    infos.emplace_back(attr);
   }
-  session_->get_current_db()->create_table(new_table_name_.c_str(), infos, StorageFormat::ROW_FORMAT);
+  session_->get_current_db()->create_table(new_table_name_.c_str(), infos_, StorageFormat::ROW_FORMAT);
   return RC::SUCCESS;
 }
 

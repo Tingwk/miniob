@@ -123,7 +123,7 @@ RC PhysicalPlanGenerator::create_plan(CreateSelectLogicalOperator &logical_oper,
     return rc;
   }
   
-  CreateSelectPhysicalOperator *cs_phy_oper = new CreateSelectPhysicalOperator(session_ ,logical_oper.table_name());
+  CreateSelectPhysicalOperator *cs_phy_oper = new CreateSelectPhysicalOperator(session_ ,logical_oper.table_name(), logical_oper.using_infos(), logical_oper.infos());
   cs_phy_oper->add_child(std::move(sub_query));
   oper.reset(cs_phy_oper);
   return RC::SUCCESS;
