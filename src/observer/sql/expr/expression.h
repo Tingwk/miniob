@@ -36,9 +36,9 @@ class Tuple;
  * @brief 表达式类型
  * @ingroup Expression
  */
-enum class ExprType
+enum class ExprType :uint32_t
 {
-  NONE,
+  NONE = 0,
   STAR,                 ///< 星号，表示所有字段
   UNBOUND_FIELD,        ///< 未绑定的字段，需要在resolver阶段解析为FieldExpr
   UNBOUND_AGGREGATION,  ///< 未绑定的聚合函数，需要在resolver阶段解析为AggregateExpr
@@ -50,10 +50,12 @@ enum class ExprType
   CONJUNCTION,  ///< 多个表达式使用同一种关系(AND或OR)来联结
   ARITHMETIC,   ///< 算术运算
   AGGREGATION,  ///< 聚合运算
-  SUB_QUERY_EXPR,
+  SUB_QUERY_LOGICAL_EXPR,
   VALUE_LIST_EXPR,
   ASSIGNMENT_EXPR,
   FUNCTION_EXPR,
+  SUB_QUERY_EXPR,
+  NULL_EXPR,
   SUB_QUERY_PHYSICAL_EXPR,
 };
 
@@ -81,6 +83,9 @@ class ArithmeticExpr;
 class UnboundAggregateExpr;
 class AggregateExpr;
 class ErrorExpr;
+class ValueListExpr;
+class NullExpr;
+class SubQueryExpr;
 static Expression* expression_factory(Expression *expr);
 class Expression {
 public:
@@ -136,6 +141,10 @@ public:
   virtual int  pos() const { return pos_; }
   virtual void set_pos(int pos) { pos_ = pos; }
 
+  virtual void set_alias(const char* alias) {
+    name_ = alias;
+    has_alias_ = true;
+  }
   /**
    * @brief 用于 ComparisonExpr 获得比较结果 `select`。
    */
@@ -152,6 +161,7 @@ protected:
 
 private:
   std::string name_;
+  bool has_alias_{false};
 };
 
 class StarExpr : public Expression {
@@ -295,7 +305,7 @@ private:
  */
 class ComparisonExpr : public Expression {
 public:
-  ComparisonExpr(CompOp comp, std::unique_ptr<Expression> left, std::unique_ptr<Expression> right);
+  ComparisonExpr(CompOp comp, std::unique_ptr<Expression>&& left, std::unique_ptr<Expression>&& right);
   virtual ~ComparisonExpr();
   ComparisonExpr(const ComparisonExpr& other): comp_(other.comp_){
     left_.reset(expression_factory(other.left_.get()));
@@ -311,10 +321,12 @@ public:
    * select 的长度与chunk 的行数相同，表示每一行在ComparisonExpr 计算后是否会被输出。
    */
   RC eval(Chunk &chunk, std::vector<uint8_t> &select) override;
-
+  void reset_left(std::unique_ptr<Expression>&& other_left) { left_ = std::move(other_left);}
+  void reset_right(std::unique_ptr<Expression>&& other_right) { right_ = std::move(other_right);}
   std::unique_ptr<Expression> &left() { return left_; }
   std::unique_ptr<Expression> &right() { return right_; }
-
+  ExprType left_expr_type() const { return left_->type(); }
+  ExprType rightt_expr_type() const { return right_->type(); }
   /**
    * 尝试在没有tuple的情况下获取当前表达式的值
    * 在优化的时候，可能会使用到
@@ -401,8 +413,7 @@ public:
   ExprType type() const override { return ExprType::ARITHMETIC; }
 
   AttrType value_type() const override;
-  int      value_length() const override
-  {
+  int      value_length() const override {
     if (!right_) {
       return left_->value_length();
     }
@@ -524,6 +535,57 @@ public:
 private:
   FunctionType function_type_;
   Value input_;
+};
+
+class SubQueryExpr : public Expression {
+public:
+  SubQueryExpr() = default;
+  SubQueryExpr(std::unique_ptr<ParsedSqlNode>&& other): sub_query_(std::move(other))  {} 
+  virtual ~SubQueryExpr() = default;
+  ExprType type() const override { return ExprType::SUB_QUERY_EXPR; }
+  AttrType value_type() const override { return AttrType::UNDEFINED; }
+  RC       get_value(const Tuple &tuple, Value &value) const override { return RC::INTERNAL; }
+  std::unique_ptr<ParsedSqlNode>& sub_query() { return sub_query_; } 
+private:
+  std::unique_ptr<ParsedSqlNode> sub_query_;
+};
+
+
+class NullExpr : public Expression {
+ public:
+  NullExpr() = default;
+  virtual ~NullExpr() = default;
+  ExprType type() const override { return ExprType::NULL_EXPR; }
+  AttrType value_type() const override { return AttrType::NULLS; }
+  RC       get_value(const Tuple &tuple, Value &value) const override { return RC::INTERNAL; }
+ private:
+  
+};
+
+
+
+class ValueListExpr : public Expression {
+ public:
+  ValueListExpr() = default;
+  ~ValueListExpr() {
+    if (values_) {
+      delete values_;
+    }
+  }
+  ValueListExpr(std::vector<Value>* values) : values_(values) {}
+  
+
+  RC get_value(const Tuple &tuple, Value &value) const override {
+    return RC::SUCCESS;
+  }
+  AttrType value_type() const override {
+    return AttrType::UNDEFINED;
+  }
+  std::vector<Value>* values_list() { return values_; }
+  RC try_get_value(Value &value) const override { return RC::SUCCESS;}
+  ExprType type() const override { return ExprType::VALUE_LIST_EXPR; }
+ private:
+  std::vector<Value> *values_;
 };
 
 static Expression* expression_factory(Expression *expr) {

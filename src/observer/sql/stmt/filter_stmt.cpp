@@ -28,6 +28,8 @@ FilterStmt::~FilterStmt()
   filter_units_.clear();
 }
 
+
+
 RC FilterStmt::filter_expression(std::vector<std::unique_ptr<Expression>>& cmp_exprs) {
   for (size_t k = 0; k < filter_units_.size(); k++) {
     if (!filter_flags_[k]) {
@@ -49,7 +51,7 @@ RC FilterStmt::filter_sub_queries(std::vector<FilterUnit*>& vec_querys) {
     if (!filter_flags_[i])
       continue;
     auto unit = filter_units_[i];
-    if (unit->left().value_type == ValueType::ATTRIBUTE && unit->right().value_type == ValueType::SUB_QUERY) {
+    if (unit->left().value_type == ValueType::SUB_QUERY || unit->right().value_type == ValueType::SUB_QUERY) {
        vec_querys.emplace_back(unit);
        filter_flags_[i] = false;
     }
@@ -96,6 +98,27 @@ RC FilterStmt::create(Db *db, Table *default_table, const std::unordered_map<std
   return rc;
 }
 
+RC FilterStmt::create(Db *db, Table *default_table, const std::unordered_map<std::string, Table *> *tables,
+    std::vector<std::unique_ptr<Expression>>& conditions, FilterStmt *&stmt) {
+  RC rc = RC::SUCCESS;
+  stmt  = nullptr;
+  FilterStmt *tmp_stmt = new FilterStmt();
+  tmp_stmt->filter_flags_.resize(conditions.size());
+  for (size_t i = 0; i < conditions.size(); i++) {
+    FilterUnit *filter_unit = nullptr;
+    rc = create_filter_unit(db, default_table, tables, conditions[i], filter_unit);
+    if (rc != RC::SUCCESS) {
+      delete tmp_stmt;
+      LOG_WARN("failed to create filter unit. condition index=%d", i);
+      return rc;
+    }
+    tmp_stmt->filter_units_.push_back(filter_unit);
+    tmp_stmt->filter_flags_[i] = true;
+  }
+  stmt = tmp_stmt;
+  return RC::SUCCESS;
+}
+
 RC get_table_and_field(Db *db, Table *default_table, const std::unordered_map<std::string, Table *> *tables,
     const RelAttrSqlNode &attr, Table *&table, const FieldMeta *&field) {
   if (common::is_blank(attr.relation_name.c_str())) {
@@ -123,119 +146,216 @@ RC get_table_and_field(Db *db, Table *default_table, const std::unordered_map<st
   return RC::SUCCESS;
 }
 
-RC FilterStmt::create_filter_unit(Db *db, Table *default_table, const std::unordered_map<std::string, Table *> *tables,
-     ConditionSqlNode &condition, FilterUnit *&filter_unit)
-{
-  RC rc = RC::SUCCESS;
+RC FilterStmt::create_filter_obj(Db* db, FilterUnit* unit, std::unique_ptr<Expression>& expr, bool left) {
+  FilterObj &obj = (left ? unit->left() : unit->right());
+  RC rc;
+  
+  switch (expr->type()) {
+    case ExprType::FIELD: {
+      auto field_expr = static_cast<FieldExpr*>(expr.get());
+      obj.init_attr(field_expr->field());
+    } break;
+    
+    case ExprType::NULL_EXPR: {
+      obj.init_null();
+    } break;
+    case ExprType::VALUE: {
+      auto val_expr = static_cast<ValueExpr*>(expr.get());
+      if (!left) {
+        auto &left_obj = unit->left();
+        if (left_obj.value_type == ValueType::ATTRIBUTE && left_obj.field.attr_type() == AttrType::DATES) {
+          auto date_str = val_expr->get_value().get_string();
+          int date_val;
+          if (rc = date_str_to_int(date_str.c_str(), date_val); rc != RC::SUCCESS) {
+            return rc;
+          }
+          Value v;
+          v.set_date(date_val);
+          obj.init_value(v);
+        } else {
+          obj.init_value(val_expr->get_value());
+        }
+      }  else {
+        obj.init_value(val_expr->get_value());
+      }
+    }break;
+    case ExprType::SUB_QUERY_EXPR: {
+      Stmt * stmt;
+      auto select_expr = static_cast<SubQueryExpr*>(expr.get());
+      rc = SelectStmt::create(db, select_expr->sub_query()->selection, stmt);
+      if (rc != RC::SUCCESS) {
+        return rc;
+      }
+      obj.init_sub_query(stmt);
+    }break;
+    case ExprType::VALUE_LIST_EXPR: {
+      
+      obj.init_value_list(expr);
+    }break;
+    case ExprType::ARITHMETIC: {
+      obj.init_expression(expr);
+    }break;
+    // case ExprType::UNBOUND_AGGREGATION: {
 
-  CompOp comp = condition.comp;
+    // }break;
+    default:
+    return RC::INTERNAL;
+      break;
+  }
+  return RC::SUCCESS;
+}
+
+RC FilterStmt::create_filter_unit(Db *db, Table *default_table, const std::unordered_map<std::string, Table *> *tables, std::unique_ptr<Expression>& expr, FilterUnit *&filter_unit) {
+  RC rc;
+  auto condition = static_cast<ComparisonExpr*>(expr.get());
+  CompOp comp = condition->comp();
   if (comp < EQUAL_TO || comp >= NO_OP) {
     LOG_WARN("invalid compare operator : %d", comp);
     return RC::INVALID_ARGUMENT;
   }
 
   filter_unit = new FilterUnit;
-
-  if (condition.left_value_type == ValueType::ATTRIBUTE) {
-    Table           *table = nullptr;
-    const FieldMeta *field = nullptr;
-    rc                     = get_table_and_field(db, default_table, tables, condition.left_attr, table, field);
-    if (rc != RC::SUCCESS) {
-      LOG_WARN("cannot find attr");
-      return rc;
-    }
-    FilterObj filter_obj;
-    filter_obj.init_attr(Field(table, field));
-    filter_unit->set_left(filter_obj);
+  auto left_type = condition->left()->type();
+  rc = create_filter_obj(db, filter_unit, condition->left(), true);
+  if (rc != RC::SUCCESS) {
+    return rc;
   }
-
-  switch (condition.right_value_type) {
-    case ValueType::ATTRIBUTE: {
-      Table           *table = nullptr;
-      const FieldMeta *field = nullptr;
-      rc                     = get_table_and_field(db, default_table, tables, condition.right_attr, table, field);
-      if (rc != RC::SUCCESS) {
-        LOG_WARN("cannot find attr");
-        return rc;
-      }
-      FilterObj filter_obj;
-      filter_obj.init_attr(Field(table, field));
-      filter_unit->set_right(filter_obj);
-    }break;
-    case ValueType::CONSTANT: {
-      FilterObj filter_obj;
-      if (condition.left_value_type == ValueType::ATTRIBUTE && filter_unit->left().field.attr_type() == AttrType::DATES) {
-        ASSERT(condition.right_value.attr_type() == AttrType::CHARS, "value type must be chars");
-        auto date_str = condition.right_value.get_string();
-        int date_val;
-        if (rc = date_str_to_int(date_str.c_str(), date_val); rc != RC::SUCCESS) {
-          return rc;
-        }
-        Value v;
-        v.set_date(date_val);
-        filter_obj.init_value(v);
-      } else {
-        filter_obj.init_value(condition.right_value);
-      }
-      filter_unit->set_right(filter_obj);
-    }break;
-    case ValueType::SUB_QUERY: {
-      assert(condition.left_value_type == ValueType::ATTRIBUTE);
-      Stmt * select_stmt;
-      rc = SelectStmt::create(db, (condition.right_sub_queries->selection), select_stmt);
-      if (rc !=  RC::SUCCESS || (static_cast<SelectStmt*>(select_stmt))->query_expressions().size() > 1) {
-        rc = RC::INTERNAL;
-        LOG_WARN("cannot create sub query");
-        return rc;
-      }
-      FilterObj obj;
-      obj.init_sub_query(select_stmt);
-      filter_unit->set_right(obj);
-    }break;
-    case ValueType::VALUE_LIST: {
-      assert(condition.left_value_type == ValueType::ATTRIBUTE);
-      for (auto &value : (*condition.value_list)) {
-        if (value.attr_type() != filter_unit->left().field.attr_type()) {
-          return RC::INTERNAL;
-        }
-      }
-      FilterObj obj;
-      obj.init_value_list(condition.value_list);
-      filter_unit->set_right(obj);
-    }break;
-    case ValueType::NULL_TYPE: {
-      Value v;
-      v.set_null();
-      FilterObj obj;
-      obj.init_null(v);
-      filter_unit->set_right(obj);
-    }break;
-    default:
-      break;
+  rc = create_filter_obj(db, filter_unit, condition->right(), false);
+  if (rc != RC::SUCCESS) {
+    return rc;
   }
-
-  if (ValueType::CONSTANT == condition.left_value_type) {
-    FilterObj filter_obj;
-    if (condition.right_value_type == ValueType::ATTRIBUTE && filter_unit->right().field.attr_type() == AttrType::DATES) {
-      ASSERT(condition.left_value.attr_type() == AttrType::CHARS, "value type must be chars");
-      auto date_str = condition.left_value.get_string();
+  if (left_type == ExprType::VALUE) {
+    auto &right_obj = filter_unit->right();
+    if (right_obj.value_type == ValueType::ATTRIBUTE && right_obj.field.attr_type() == AttrType::DATES) {
+      auto date_str = filter_unit->left().value.get_string();
       int date_val;
       if (rc = date_str_to_int(date_str.c_str(), date_val);RC::SUCCESS != rc) {
         return rc;
       }
       Value v;
       v.set_date(date_val);
-      filter_obj.init_value(v);
-    } else {
-      filter_obj.init_value(condition.left_value);
+      filter_unit->left().init_value(v);
     }
-    filter_unit->set_left(filter_obj);
-  } else {
-    ASSERT(false, "UNREACHABLE");
   }
 
   filter_unit->set_comp(comp);
+  return RC::SUCCESS;
+}
+
+RC FilterStmt::create_filter_unit(Db *db, Table *default_table, const std::unordered_map<std::string, Table *> *tables,
+     ConditionSqlNode &condition, FilterUnit *&filter_unit) {
+  RC rc = RC::SUCCESS;
+
+  // CompOp comp = condition.comp;
+  // if (comp < EQUAL_TO || comp >= NO_OP) {
+  //   LOG_WARN("invalid compare operator : %d", comp);
+  //   return RC::INVALID_ARGUMENT;
+  // }
+
+  // filter_unit = new FilterUnit;
+
+  // if (condition.left_value_type == ValueType::ATTRIBUTE) {
+  //   Table           *table = nullptr;
+  //   const FieldMeta *field = nullptr;
+  //   rc                     = get_table_and_field(db, default_table, tables, condition.left_attr, table, field);
+  //   if (rc != RC::SUCCESS) {
+  //     LOG_WARN("cannot find attr");
+  //     return rc;
+  //   }
+  //   FilterObj filter_obj;
+  //   filter_obj.init_attr(Field(table, field));
+  //   filter_unit->set_left(filter_obj);
+  // }
+
+  // switch (condition.right_value_type) {
+  //   case ValueType::ATTRIBUTE: {
+  //     Table           *table = nullptr;
+  //     const FieldMeta *field = nullptr;
+  //     rc                     = get_table_and_field(db, default_table, tables, condition.right_attr, table, field);
+  //     if (rc != RC::SUCCESS) {
+  //       LOG_WARN("cannot find attr");
+  //       return rc;
+  //     }
+  //     FilterObj filter_obj;
+  //     filter_obj.init_attr(Field(table, field));
+  //     filter_unit->set_right(filter_obj);
+  //   }break;
+  //   case ValueType::CONSTANT: {
+  //     FilterObj filter_obj;
+  //     if (condition.left_value_type == ValueType::ATTRIBUTE && filter_unit->left().field.attr_type() == AttrType::DATES) {
+  //       ASSERT(condition.right_value.attr_type() == AttrType::CHARS, "value type must be chars");
+  //       auto date_str = condition.right_value.get_string();
+  //       int date_val;
+  //       if (rc = date_str_to_int(date_str.c_str(), date_val); rc != RC::SUCCESS) {
+  //         return rc;
+  //       }
+  //       Value v;
+  //       v.set_date(date_val);
+  //       filter_obj.init_value(v);
+  //     } else {
+  //       filter_obj.init_value(condition.right_value);
+  //     }
+  //     filter_unit->set_right(filter_obj);
+  //   }break;
+  //   case ValueType::SUB_QUERY: {
+  //     assert(condition.left_value_type == ValueType::ATTRIBUTE);
+  //     Stmt * select_stmt;
+  //     rc = SelectStmt::create(db, (condition.right_sub_queries->selection), select_stmt);
+  //     if (rc !=  RC::SUCCESS || (static_cast<SelectStmt*>(select_stmt))->query_expressions().size() > 1) {
+  //       rc = RC::INTERNAL;
+  //       LOG_WARN("cannot create sub query");
+  //       return rc;
+  //     }
+  //     FilterObj obj;
+  //     obj.init_sub_query(select_stmt);
+  //     filter_unit->set_right(obj);
+  //   }break;
+  //   case ValueType::VALUE_LIST: {
+  //     assert(condition.left_value_type == ValueType::ATTRIBUTE);
+  //     for (auto &value : (*condition.value_list)) {
+  //       if (value.attr_type() != filter_unit->left().field.attr_type()) {
+  //         return RC::INTERNAL;
+  //       }
+  //     }
+  //     FilterObj obj;
+  //     obj.init_value_list(condition.value_list);
+  //     filter_unit->set_right(obj);
+  //   }break;
+  //   case ValueType::NULL_TYPE: {
+  //     Value v;
+  //     v.set_null();
+  //     FilterObj obj;
+  //     obj.init_null(v);
+  //     filter_unit->set_right(obj);
+  //   }break;
+  //   default:
+  //     break;
+  // }
+
+  // if (ValueType::CONSTANT == condition.left_value_type) {
+  //   FilterObj filter_obj;
+  //   if (condition.right_value_type == ValueType::ATTRIBUTE && filter_unit->right().field.attr_type() == AttrType::DATES) {
+  //     ASSERT(condition.left_value.attr_type() == AttrType::CHARS, "value type must be chars");
+  //     auto date_str = condition.left_value.get_string();
+  //     int date_val;
+  //     if (rc = date_str_to_int(date_str.c_str(), date_val);RC::SUCCESS != rc) {
+  //       return rc;
+  //     }
+  //     Value v;
+  //     v.set_date(date_val);
+  //     filter_obj.init_value(v);
+  //   } else {
+  //     filter_obj.init_value(condition.left_value);
+  //   }
+  //   filter_unit->set_left(filter_obj);
+  // } else {
+  //   ASSERT(false, "UNREACHABLE");
+  // }
+
+  // filter_unit->set_comp(comp);
 
   // 检查两个类型是否能够比较
   return rc;
 }
+
+

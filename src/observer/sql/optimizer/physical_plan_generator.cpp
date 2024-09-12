@@ -184,7 +184,21 @@ RC PhysicalPlanGenerator::create_plan(TableGetLogicalOperator &table_get_oper, u
   for (auto &expr : predicates) {
     if (expr->type() == ExprType::COMPARISON) {
       auto comparison_expr = static_cast<ComparisonExpr *>(expr.get());
-      if (comparison_expr->right()->type() == ExprType::SUB_QUERY_EXPR) {
+      if (comparison_expr->left()->type() == ExprType::SUB_QUERY_LOGICAL_EXPR) {
+        std::unique_ptr<PhysicalOperator> query;
+        auto sub_query_log_oper = static_cast<SubQueryLogicalExpr*>(comparison_expr->left().get());
+        auto pred_oper = static_cast<ProjectLogicalOperator*>(sub_query_log_oper->sub_query().get());
+        auto rc = create_plan(*pred_oper, query);
+        if (rc != RC::SUCCESS) {
+          LOG_WARN("cannot create subquery ");
+          return rc;
+        }
+        if (sub_query_log_oper->with_table_name()) {
+          query->set_with_table_name();
+        }
+        comparison_expr->left().reset(new SubQueryPhysicalExpr(std::move(query)));
+      }
+      if (comparison_expr->right()->type() == ExprType::SUB_QUERY_LOGICAL_EXPR) {
         std::unique_ptr<PhysicalOperator> query;
         auto sub_query_log_oper = static_cast<SubQueryLogicalExpr*>(comparison_expr->right().get());
         auto pred_oper = static_cast<ProjectLogicalOperator*>(sub_query_log_oper->sub_query().get());
@@ -196,48 +210,47 @@ RC PhysicalPlanGenerator::create_plan(TableGetLogicalOperator &table_get_oper, u
         if (sub_query_log_oper->with_table_name()) {
           query->set_with_table_name();
         }
-        std::unique_ptr<SubQueryPhysicalExpr> phy_expr(new SubQueryPhysicalExpr(std::move(query)));
-        expr.reset(new ComparisonExpr(comparison_expr->comp(), std::move(comparison_expr->left()), std::move(phy_expr)));
+        comparison_expr->right().reset(new SubQueryPhysicalExpr(std::move(query)));
       }
     }
   }
-  for (auto &expr : predicates) {
-    if (expr->type() == ExprType::COMPARISON) {
-      auto comparison_expr = static_cast<ComparisonExpr *>(expr.get());
-      // 简单处理，就找等值查询
-      if (comparison_expr->comp() != EQUAL_TO) {
-        continue;
-      }
+  // for (auto &expr : predicates) {
+  //   if (expr->type() == ExprType::COMPARISON) {
+  //     auto comparison_expr = static_cast<ComparisonExpr *>(expr.get());
+  //     // 简单处理，就找等值查询
+  //     if (comparison_expr->comp() != EQUAL_TO) {
+  //       continue;
+  //     }
 
-      unique_ptr<Expression> &left_expr  = comparison_expr->left();
-      unique_ptr<Expression> &right_expr = comparison_expr->right();
-      // 左右比较的一边最少是一个值
-      if (left_expr->type() != ExprType::VALUE && right_expr->type() != ExprType::VALUE) {
-        continue;
-      }
+  //     unique_ptr<Expression> &left_expr  = comparison_expr->left();
+  //     unique_ptr<Expression> &right_expr = comparison_expr->right();
+  //     // 左右比较的一边最少是一个值
+  //     if (left_expr->type() != ExprType::VALUE && right_expr->type() != ExprType::VALUE) {
+  //       continue;
+  //     }
 
       
-      if (left_expr->type() == ExprType::FIELD) {
-        ASSERT(right_expr->type() == ExprType::VALUE, "right expr should be a value expr while left is field expr");
-        field_expr = static_cast<FieldExpr *>(left_expr.get());
-        value_expr = static_cast<ValueExpr *>(right_expr.get());
-      } else if (right_expr->type() == ExprType::FIELD) {
-        ASSERT(left_expr->type() == ExprType::VALUE, "left expr should be a value expr while right is a field expr");
-        field_expr = static_cast<FieldExpr *>(right_expr.get());
-        value_expr = static_cast<ValueExpr *>(left_expr.get());
-      }
+  //     if (left_expr->type() == ExprType::FIELD) {
+  //       ASSERT(right_expr->type() == ExprType::VALUE, "right expr should be a value expr while left is field expr");
+  //       field_expr = static_cast<FieldExpr *>(left_expr.get());
+  //       value_expr = static_cast<ValueExpr *>(right_expr.get());
+  //     } else if (right_expr->type() == ExprType::FIELD) {
+  //       ASSERT(left_expr->type() == ExprType::VALUE, "left expr should be a value expr while right is a field expr");
+  //       field_expr = static_cast<FieldExpr *>(right_expr.get());
+  //       value_expr = static_cast<ValueExpr *>(left_expr.get());
+  //     }
 
-      if (field_expr == nullptr) {
-        continue;
-      }
+  //     if (field_expr == nullptr) {
+  //       continue;
+  //     }
 
-      const Field &field = field_expr->field();
-      index              = table->find_index_by_field(field.field_name());
-      if (nullptr != index) {
-        break;
-      }
-    }
-  }
+  //     const Field &field = field_expr->field();
+  //     index              = table->find_index_by_field(field.field_name());
+  //     if (nullptr != index) {
+  //       break;
+  //     }
+  //   }
+  // }
 
   if (index != nullptr) {
     ASSERT(value_expr != nullptr, "got an index but value expr is null ?");
@@ -288,6 +301,20 @@ RC PhysicalPlanGenerator::create_plan(PredicateLogicalOperator &pred_oper, uniqu
   for (auto& expr : conj_expr->children()) {
     if (expr->type() == ExprType::COMPARISON) {
       auto cmp_expr = static_cast<ComparisonExpr*>(expr.get());
+      if (cmp_expr->left()->type() == ExprType::SUB_QUERY_LOGICAL_EXPR) {
+        std::unique_ptr<PhysicalOperator> query;
+        auto sub_query_log_oper = static_cast<SubQueryLogicalExpr*>(cmp_expr->left().get());
+        auto pred_oper = static_cast<ProjectLogicalOperator*>(sub_query_log_oper->sub_query().get());
+        auto rc = create_plan(*pred_oper, query);
+        if (rc != RC::SUCCESS) {
+          LOG_WARN("cannot create subquery ");
+          return rc;
+        }
+        if (sub_query_log_oper->with_table_name()) {
+          query->set_with_table_name();
+        }
+        cmp_expr->left().reset(new SubQueryPhysicalExpr(std::move(query)));
+      }
       if (cmp_expr->right()->type() == ExprType::SUB_QUERY_EXPR) {
         std::unique_ptr<PhysicalOperator> query;
         auto sub_query_logical_expr = static_cast<SubQueryLogicalExpr*>(cmp_expr->right().get());
@@ -299,8 +326,7 @@ RC PhysicalPlanGenerator::create_plan(PredicateLogicalOperator &pred_oper, uniqu
         if (sub_query_logical_expr->with_table_name()) {
           query->set_with_table_name();
         }
-        std::unique_ptr<SubQueryPhysicalExpr> phy_oper(new SubQueryPhysicalExpr(std::move(query)));
-        expr.reset(new ComparisonExpr(cmp_expr->comp(), std::move(cmp_expr->left()), std::move(phy_oper)));
+        cmp_expr->right().reset(new SubQueryPhysicalExpr(std::move(query)));
       }
     }
   }

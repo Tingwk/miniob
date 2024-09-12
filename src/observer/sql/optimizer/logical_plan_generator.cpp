@@ -43,7 +43,8 @@ See the Mulan PSL v2 for more details. */
 #include "sql/expr/expression_iterator.h"
 #include "sql/expr/sub_query_logical_expr.h"
 #include "sql/expr/sub_query_physical_expr.h"
-#include "sql/expr/value_list_expression.h"
+#include "sql/expr/expression.h"
+
 
 using namespace std;
 using namespace common;
@@ -103,6 +104,78 @@ RC LogicalPlanGenerator::create(Stmt *stmt, unique_ptr<LogicalOperator> &logical
   return rc;
 }
 
+bool LogicalPlanGenerator::try_push_down(FilterStmt* stmt, size_t k, Table * table, std::unique_ptr<Expression>& expr) {
+  auto unit = stmt->filter_units()[k];
+  bool flag = false;
+  auto &left_obj = unit->left();
+  auto &right_obj = unit->right();
+  if (left_obj.value_type == ValueType::ATTRIBUTE && left_obj.field.table() == table) {
+    if (right_obj.value_type == ValueType::CONSTANT) {
+      std::unique_ptr<FieldExpr> left(new FieldExpr(unit->left().field));
+      std::unique_ptr<ValueExpr> right(new ValueExpr(unit->right().value));
+      expr.reset(new ComparisonExpr(unit->comp(), std::move(left), std::move(right)));
+      flag = true;
+    } else if (right_obj.value_type == ValueType::SUB_QUERY) {
+      std::unique_ptr<FieldExpr> left(new FieldExpr(unit->left().field));
+      std::unique_ptr<LogicalOperator> sub_query_logical_oper;
+      [[maybe_unused]]auto sub_selete_stmt = static_cast<SelectStmt*>(unit->right().sub_query);
+      auto rc = create_plan(sub_selete_stmt, sub_query_logical_oper);
+      if (rc != RC::SUCCESS) {
+        LOG_WARN("cannont create sub query");
+        // return rc;
+      }
+      std::unique_ptr<SubQueryLogicalExpr> right(new SubQueryLogicalExpr(std::move(sub_query_logical_oper)));
+      right->set_with_table_name(sub_selete_stmt->tables().size() > 1);
+      expr.reset(new ComparisonExpr(unit->comp(), std::move(left), std::move(right)));
+      flag = true;
+    } else if (right_obj.value_type == ValueType::VALUE_LIST) {
+      std::unique_ptr<FieldExpr> left(new FieldExpr(unit->left().field));
+      expr.reset(new ComparisonExpr(unit->comp(), std::move(left), std::move(unit->right().expression)));
+      flag = true; 
+    } else if (right_obj.value_type == ValueType::NULL_TYPE) {
+      std::unique_ptr<FieldExpr> left(new FieldExpr(unit->left().field));
+      std::unique_ptr<NullExpr> right(new NullExpr());
+      expr.reset(new ComparisonExpr(unit->comp(), std::move(left), std::move(right)));
+      flag = true; 
+    }
+  } else if (right_obj.value_type == ValueType::ATTRIBUTE && right_obj.field.table() == table) {
+    if (left_obj.value_type == ValueType::CONSTANT) {
+      std::unique_ptr<FieldExpr> right(new FieldExpr(unit->right().field));
+      std::unique_ptr<ValueExpr> left(new ValueExpr(unit->left().value));
+      expr.reset(new ComparisonExpr(unit->comp(), std::move(left), std::move(right)));
+      flag = true;
+    } else if (left_obj.value_type == ValueType::SUB_QUERY) {
+      std::unique_ptr<FieldExpr> right(new FieldExpr(unit->right().field));
+      std::unique_ptr<LogicalOperator> sub_query_logical_oper;
+      [[maybe_unused]]auto sub_selete_stmt = static_cast<SelectStmt*>(unit->left().sub_query);
+      auto rc = create_plan(sub_selete_stmt, sub_query_logical_oper);
+      if (rc != RC::SUCCESS) {
+        LOG_WARN("cannont create sub query");
+        // return rc;
+      }
+      std::unique_ptr<SubQueryLogicalExpr> left(new SubQueryLogicalExpr(std::move(sub_query_logical_oper)));
+      left->set_with_table_name(sub_selete_stmt->tables().size() > 1);
+      expr.reset(new ComparisonExpr(unit->comp(), std::move(left), std::move(right)));
+      flag = true;
+    } else if (left_obj.value_type == ValueType::VALUE_LIST) {
+      std::unique_ptr<FieldExpr> right(new FieldExpr(unit->right().field));
+      // std::unique_ptr<ValueListExpr> left(new ValueListExpr(unit->left().values));
+      expr.reset(new ComparisonExpr(unit->comp(), std::move(unit->left().expression), std::move(right)));
+      flag = true; 
+    } else if (left_obj.value_type == ValueType::NULL_TYPE) {
+      std::unique_ptr<FieldExpr> right(new FieldExpr(unit->right().field));
+      std::unique_ptr<NullExpr> left(new NullExpr());
+      expr.reset(new ComparisonExpr(unit->comp(), std::move(left), std::move(right)));
+      flag = true; 
+    }
+  }
+  
+  if (flag) {
+    stmt->set_flag(k, false);
+  }
+  return flag;
+}
+
 RC LogicalPlanGenerator::create_plan(CreateSelectStmt *cs_stmt, std::unique_ptr<LogicalOperator> &logical_operator) {
   RC rc;
   std::unique_ptr<LogicalOperator> query_oper;
@@ -141,43 +214,13 @@ RC LogicalPlanGenerator::create_plan(SelectStmt *select_stmt, unique_ptr<Logical
     auto filter_units = select_stmt->filter_stmt()->filter_units();
     std::vector<std::unique_ptr<Expression>> predicates;
     for (size_t i = 0; i < filter_units.size(); i++) {
-      auto unit = filter_units[i];
-      if (unit->left().value_type == ValueType::ATTRIBUTE && unit->left().field.table() == table && unit->right().value_type == ValueType::CONSTANT) {
-        std::unique_ptr<FieldExpr> left(new FieldExpr(unit->left().field));
-        std::unique_ptr<ValueExpr> right(new ValueExpr(unit->right().value));
-        std::unique_ptr<ComparisonExpr> cmp_expr (new ComparisonExpr(unit->comp(), std::move(left), std::move(right)));
-        predicates.emplace_back(std::move(cmp_expr));
-        select_stmt->filter_stmt()->set_flag(i, false);
-      } else if (unit->right().value_type == ValueType::ATTRIBUTE && unit->right().field.table() == table && unit->left().value_type == ValueType::CONSTANT) {
-        std::unique_ptr<ValueExpr> left (new ValueExpr(unit->left().value));
-        std::unique_ptr<FieldExpr> right(new FieldExpr(unit->right().field));
-        std::unique_ptr<ComparisonExpr> cmp_expr (new ComparisonExpr(unit->comp(), std::move(left), std::move(right)));
-        predicates.emplace_back(std::move(cmp_expr));
-        select_stmt->filter_stmt()->set_flag(i, false);
-      } else  if (unit->left().value_type == ValueType::ATTRIBUTE && unit->left().field.table() == table && unit->right().value_type == ValueType::SUB_QUERY) {
-        std::unique_ptr<FieldExpr> left(new FieldExpr(unit->left().field));
-        std::unique_ptr<LogicalOperator> sub_query_logical_oper;
-        [[maybe_unused]]auto sub_selete_stmt = static_cast<SelectStmt*>(unit->right().sub_query);
-        auto rc = create_plan(sub_selete_stmt, sub_query_logical_oper);
-        if (rc != RC::SUCCESS) {
-          LOG_WARN("cannont create sub query");
-          return rc;
-        }
-        std::unique_ptr<SubQueryLogicalExpr> right(new SubQueryLogicalExpr(std::move(sub_query_logical_oper)));
-        right->set_with_table_name(sub_selete_stmt->tables().size() > 1);
-        std::unique_ptr<ComparisonExpr> cmp_expr (new ComparisonExpr(unit->comp(), std::move(left), std::move(right)));
-        predicates.emplace_back(std::move(cmp_expr));
-        select_stmt->filter_stmt()->set_flag(i, false);
-      } else if (unit->left().value_type == ValueType::ATTRIBUTE && unit->left().field.table() == table && unit->right().value_type == ValueType::VALUE_LIST) {
-        std::unique_ptr<FieldExpr> left(new FieldExpr(unit->left().field));
-        std::unique_ptr<ValueListExpr> right(new ValueListExpr(unit->right().values));
-        std::unique_ptr<ComparisonExpr> cmp_expr(new ComparisonExpr(unit->comp(), std::move(left), std::move(right)));
-        predicates.emplace_back(std::move(cmp_expr));
-        select_stmt->filter_stmt()->set_flag(i, false);
+      std::unique_ptr<Expression> expr;
+      if (try_push_down(select_stmt->filter_stmt(), i, table, expr)) {
+        predicates.emplace_back(std::move(expr));
       }
     }
     if (!predicates.empty()) {
-      // check whether cmp_expr is empty or not,
+      // check whether cmp_expr is empty or not,1
       table_get_oper->set_predicates(std::move(predicates));
     }
     if (table_oper == nullptr) {
@@ -251,31 +294,48 @@ RC LogicalPlanGenerator::create_plan(SelectStmt *select_stmt, unique_ptr<Logical
 
 RC LogicalPlanGenerator::create_plan(FilterStmt *filter_stmt, unique_ptr<LogicalOperator> &logical_operator) {
   std::vector<unique_ptr<Expression>> cmp_exprs;
-  std::vector<FilterUnit*> sub_queries;
-  std::vector<FilterUnit*> value_list;
-  filter_stmt->filter_sub_queries(sub_queries);
-  filter_stmt->filter_expression(cmp_exprs);
-  filter_stmt->filter_value_list(value_list);
-  for(auto unit : sub_queries) {
-    std::unique_ptr<LogicalOperator> sub_query;
-    auto select_stmt = static_cast<SelectStmt*>(unit->right().sub_query);
-    auto rc = create_plan(select_stmt, sub_query);
-    if (rc != RC::SUCCESS) {
-      LOG_WARN("cannot create sub_query");
-      return rc;
+  auto units = filter_stmt->filter_units();
+  for (size_t k = 0; k < units.size(); k++) {
+    auto unit = units[k];
+    if (!filter_stmt->flag(k)) {
+      // condition has been pushed down.
+      continue;
     }
-    std::unique_ptr<FieldExpr> left(new FieldExpr(unit->left().field));
-    std::unique_ptr<SubQueryLogicalExpr> right(new SubQueryLogicalExpr(std::move(sub_query)));
-    right->set_with_table_name(select_stmt->tables().size() > 1);
-    auto cmp_expr = new ComparisonExpr(unit->comp(), std::move(left), std::move(right));
-    cmp_exprs.emplace_back(cmp_expr);
+    std::unique_ptr<Expression> left_expr;
+    std::unique_ptr<Expression> right_expr;
+    if (unit->left().value_type == ValueType::SUB_QUERY) {
+      std::unique_ptr<LogicalOperator> sub_query_logical_oper;
+      [[maybe_unused]]auto sub_selete_stmt = static_cast<SelectStmt*>(unit->left().sub_query);
+      auto rc = create_plan(sub_selete_stmt, sub_query_logical_oper);
+      if (rc != RC::SUCCESS) {
+        LOG_WARN("cannont create sub query");
+        // return rc;
+      }
+      auto query_expr = new SubQueryLogicalExpr(std::move(sub_query_logical_oper));
+      query_expr->set_with_table_name(sub_selete_stmt->tables().size() > 1);
+      left_expr.reset(query_expr);
+    } else {
+      unit->left().convert_to_expression(left_expr);
+    }
+
+    if (unit->right().value_type == ValueType::SUB_QUERY) {
+      std::unique_ptr<LogicalOperator> sub_query_logical_oper;
+      [[maybe_unused]]auto sub_selete_stmt = static_cast<SelectStmt*>(unit->right().sub_query);
+      auto rc = create_plan(sub_selete_stmt, sub_query_logical_oper);
+      if (rc != RC::SUCCESS) {
+        LOG_WARN("cannont create sub query");
+        // return rc;
+      }
+      auto query_expr = new SubQueryLogicalExpr(std::move(sub_query_logical_oper));
+      query_expr->set_with_table_name(sub_selete_stmt->tables().size() > 1);
+      right_expr.reset(query_expr);
+    } else {
+      unit->right().convert_to_expression(right_expr);
+    }
+    std::unique_ptr<Expression> cmp_expr(new ComparisonExpr(unit->comp(), std::move(left_expr), std::move(right_expr)));
+    cmp_exprs.emplace_back(std::move(cmp_expr));
   }
-  for (auto unit : value_list) {
-    std::unique_ptr<FieldExpr> left(new FieldExpr(unit->left().field));
-    std::unique_ptr<ValueListExpr> right(new ValueListExpr(unit->right().values));
-    auto cmp_expr = new ComparisonExpr(unit->comp(), std::move(left), std::move(right));
-    cmp_exprs.emplace_back(cmp_expr);
-  }
+  
   unique_ptr<PredicateLogicalOperator> predicate_oper;
   if (!cmp_exprs.empty()) {
     unique_ptr<ConjunctionExpr> conjunction_expr(new ConjunctionExpr(ConjunctionExpr::Type::AND, cmp_exprs));
@@ -456,3 +516,4 @@ RC LogicalPlanGenerator::create_group_by_plan(SelectStmt *select_stmt, unique_pt
   logical_operator = std::move(group_by_oper);
   return RC::SUCCESS;
 }
+

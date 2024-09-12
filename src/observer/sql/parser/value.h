@@ -39,8 +39,7 @@ RC date_str_to_int(const std::string& str, int& date_int_val);
  * @brief 属性的值
  *
  */
-class Value final
-{
+class Value final {
 public:
   Value() = default;
 

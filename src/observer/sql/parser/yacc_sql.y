@@ -33,8 +33,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
                                              Expression *left,
                                              Expression *right,
                                              const char *sql_string,
-                                             YYLTYPE *llocp)
-{
+                                             YYLTYPE *llocp) {
   ArithmeticExpr *expr = new ArithmeticExpr(type, left, right);
   expr->set_name(token_name(sql_string, llocp));
   return expr;
@@ -129,10 +128,11 @@ UnboundAggregateExpr *create_aggregate_expression(const char *aggregate_name,
         IS
         HAVING
 
-/** union 中定义各种数据类型，真实生成的代码也是union类型，所以不能有非POD类型的数据 **/
+/** union 中定义各种数据类型,真实生成的代码也是union类型,所以不能有非POD类型的数据 **/
 %union {
   ParsedSqlNode *                            sql_node;
   ConditionSqlNode *                         condition;
+  Expression*                                new_condition;
   Value *                                    value;
   enum CompOp                                comp;
   RelAttrSqlNode *                           rel_attr;
@@ -143,19 +143,16 @@ UnboundAggregateExpr *create_aggregate_expression(const char *aggregate_name,
   std::vector<OrderBySqlNode>*               order_by_list;
   std::vector<Value> *                       value_list;
   std::vector<ConditionSqlNode> *            condition_list;
+  std::vector<Expression*>*                  new_condition_list;
   Assignment*                                assignment_type;
   std::vector<Assignment>*                   assignment_list_type;
   std::vector<RelAttrSqlNode> *              rel_attr_list;
-  //FunctionType                               function_type;
-  //FunctionExpr *                             function_expr;
   std::vector<std::string>*                  id_list_type;
-//  std::vector<std::string> *               relation_list;
   RelListSqlNode*                            relation_list;
   char *                                     string;
   int                                        number;
   int *                                      number_ptr;
   float                                      floats;
-  //CreateSelectSqlNode*                        create_select;
 }
 
 %token <number> NUMBER
@@ -167,6 +164,8 @@ UnboundAggregateExpr *create_aggregate_expression(const char *aggregate_name,
 /** type 定义了各种解析后的结果输出的是什么类型。类型对应了 union 中的定义的成员变量名称 **/
 %type <number>              type
 %type <condition>           condition
+%type <new_condition>       new_condition
+%type <new_condition_list>  new_condition_list
 %type <condition>           subquery
 %type <value>               value
 %type <value>               value_with_null
@@ -174,6 +173,7 @@ UnboundAggregateExpr *create_aggregate_expression(const char *aggregate_name,
 %type <number>              number
 // %type <string>           relation
 %type <comp>                comp_op
+%type <comp>                null_comparator
 %type <rel_attr>            rel_attr
 %type <attr_infos>          attr_def_list
 %type <attr_info>           attr_def
@@ -183,6 +183,7 @@ UnboundAggregateExpr *create_aggregate_expression(const char *aggregate_name,
 //%type <function_expr>       function_expression
 //%type <function_type>       function
 %type <condition_list>      where
+%type <new_condition_list>  new_where
 %type <order_by_list>       order_by
 %type <order_by_list>       order_list
 %type <condition_list>      condition_list
@@ -192,6 +193,7 @@ UnboundAggregateExpr *create_aggregate_expression(const char *aggregate_name,
 %type <assignment_list_type>assignment_stmt_list
 %type <assignment_type>     assignment_stmt
 %type <string>              storage_format
+%type <string>              alias_stmt
 %type <relation_list>       rel_list
 %type <expression>          expression
 %type <expression_list>     expression_list
@@ -615,7 +617,7 @@ assignment_stmt:
   ;
 
 select_stmt:        /*  select 语句的语法解析树*/
-    SELECT expression_list FROM ID rel_list where group_by order_by
+    SELECT expression_list FROM ID rel_list new_where group_by order_by
     {
       std::cout << "select_stmt\n";
       $$ = new ParsedSqlNode(SCF_SELECT);
@@ -634,7 +636,11 @@ select_stmt:        /*  select 语句的语法解析树*/
       
       if ($6 != nullptr) {
         //cout << (*$6)[0].right_sub_queries << '\n';
-        $$->selection.conditions.swap(*$6);
+        // $$->selection.conditions.swap(*$6);
+        for (auto expr : *$6) {
+          std::unique_ptr<Expression> uni_expr(expr);
+          $$->selection.conditions.emplace_back(std::move(uni_expr));
+        }
         delete $6;
         //cout << ($$->selection.conditions)[0].right_sub_queries << '\n';
       }
@@ -659,29 +665,43 @@ calc_stmt:
     ;
 
 expression_list:
-    expression
+    expression alias_stmt
     {
       $$ = new std::vector<std::unique_ptr<Expression>>;
+      if ($2) {
+        $1->set_alias($2);
+        free($2);
+      }
       $$->emplace_back($1);
     }
-    | expression COMMA expression_list
+    | expression alias_stmt COMMA expression_list
     {
-      if ($3 != nullptr) {
-        $$ = $3;
+      if ($4 != nullptr) {
+        $$ = $4;
       } else {
         $$ = new std::vector<std::unique_ptr<Expression>>;
       }
+      if ($2) {
+        $1->set_alias($2);
+        free($2);
+      }
       $$->emplace($$->begin(), $1);
     }
-    | ID LBRACE RBRACE {
+    | ID LBRACE RBRACE alias_stmt {
       $$ = new std::vector<std::unique_ptr<Expression>>;
       Expression *expr = new ErrorExpr();
       $$->emplace_back(expr);
+      if ($4) {
+        free($4);
+      }
       free($1);
     }
-    | ID LBRACE RBRACE COMMA expression_list {
-      if ($5) {
-        delete $5;
+    | ID LBRACE RBRACE alias_stmt COMMA expression_list {
+      if ($6) {
+        delete $6;
+      }
+      if ($4) {
+        free($4);
       }
       $$ = new std::vector<std::unique_ptr<Expression>>;
       Expression *expr = new ErrorExpr();
@@ -689,18 +709,26 @@ expression_list:
       free($1);
     }
 
-    | ID LBRACE expression RBRACE {
+    | ID LBRACE expression RBRACE alias_stmt {
       $$ = new std::vector<std::unique_ptr<Expression>>;
       auto expr = create_aggregate_expression($1, $3, sql_string, &@$);
+      if ($5) {
+        expr->set_alias($5);
+        free($5);
+      }
       $$->emplace_back(expr);
       free($1);
     }
-    | ID LBRACE expression RBRACE COMMA expression_list  {
-      $$ = $6;
+    | ID LBRACE expression RBRACE alias_stmt COMMA expression_list  {
+      $$ = $7;
       int start = @1.first_column;
       int end = @4.last_column;
       auto expr = create_aggregate_expression($1, $3, sql_string, &@$);
       expr->set_name(std::string(sql_string+ start, end- start + 1));
+      if ($5) {
+        expr->set_alias($5);
+        free($5);
+      }
       free($1);
       $$->emplace($$->begin(), expr);
     }
@@ -719,16 +747,7 @@ expression_list:
     }
     
     ;
-/*
-all_expression:
-  expression {
 
-  }
-  | function_expression {
-    
-  }
-  ;
-*/
 expression:
     expression '+' expression {
       $$ = create_arithmetic_expression(ArithmeticExpr::Type::ADD, $1, $3, sql_string, &@$);
@@ -772,6 +791,13 @@ expression:
     // your code here
     
     ;
+alias_stmt:
+  {
+    $$ = nullptr;
+  }
+  | AS ID {
+    $$ = $2;
+  }
 /*
 function_expression:
     function LBRACE value RBRACE {
@@ -857,6 +883,7 @@ rel_list:
       free($3);
     }
     ;
+
 on_conditions:
   /* empty */ 
   {
@@ -869,6 +896,404 @@ on_conditions:
     $$ = $2;
   }
   ;
+
+
+new_where:
+  /* empty */
+  {
+    $$ = nullptr;
+  }
+  | WHERE new_condition_list {
+    $$ = $2;
+  }
+  ;
+
+new_condition_list:
+  new_condition {
+    $$ = new std::vector<Expression*>();
+    $$->emplace_back($1);
+  }
+  | new_condition AND new_condition_list {
+    $$ = $3;
+    $$->emplace($$->begin(), $1);
+  }
+  ;
+new_condition:
+
+//-------------------------- attr --------------------------
+
+    // attr & sub_query
+    rel_attr comp_op LBRACE select_stmt RBRACE {
+      std::unique_ptr<UnboundFieldExpr> left(new UnboundFieldExpr($1->relation_name,$1->attribute_name));
+      std::unique_ptr<ParsedSqlNode> query($4);
+      std::unique_ptr<SubQueryExpr> right(new SubQueryExpr(std::move(query)));
+      $$ = new ComparisonExpr($2, std::move(left), std::move(right));
+      delete $1;
+    }
+    | LBRACE select_stmt RBRACE comp_op rel_attr {
+      std::unique_ptr<Expression> right(new UnboundFieldExpr($5->relation_name,$5->attribute_name));
+      std::unique_ptr<ParsedSqlNode> query($2);
+      
+      std::unique_ptr<SubQueryExpr> left(new SubQueryExpr(std::move(query)));
+      $$ = new ComparisonExpr($4, std::move(left), std::move(right));
+      
+      delete $5;
+    }
+
+    // attr & value_list
+    | rel_attr comp_op LBRACE value value_list RBRACE {
+      std::unique_ptr<UnboundFieldExpr> left(new UnboundFieldExpr($1->relation_name,$1->attribute_name));
+      delete $1;
+      std::vector<Value> *val_list;
+      if ($5 != nullptr) {
+        val_list = $5;
+      } else {
+        val_list = new std::vector<Value>();
+      }
+      val_list->emplace(val_list->begin(), *$4);
+      delete $4;
+      std::unique_ptr<ValueListExpr> right(new ValueListExpr(val_list));
+      $$ = new ComparisonExpr($2, std::move(left), std::move(right));
+      
+    }
+    | LBRACE value value_list RBRACE comp_op rel_attr  {
+    //1      2      3          4      5      6
+      std::unique_ptr<UnboundFieldExpr> right(new UnboundFieldExpr($6->relation_name,$6->attribute_name));
+      delete $6;
+      std::vector<Value> *val_list;
+      if ($3 != nullptr) {
+        val_list = $3;
+      } else {
+        val_list = new std::vector<Value>();
+      }
+      val_list->emplace(val_list->begin(), *$2);
+      delete $2;
+      std::unique_ptr<ValueListExpr> left(new ValueListExpr(val_list));
+      $$ = new ComparisonExpr($5, std::move(left), std::move(right));
+    }
+
+    // attr & null
+    | rel_attr null_comparator null {
+      std::unique_ptr<UnboundFieldExpr> left(new UnboundFieldExpr($1->relation_name,$1->attribute_name));
+      delete $1;
+      std::unique_ptr<NullExpr> right(new NullExpr);
+      $$ = new ComparisonExpr($2, std::move(left), std::move(right));
+      // $$.reset(expr);
+    }
+    | null null_comparator rel_attr {
+      std::unique_ptr<UnboundFieldExpr> right(new UnboundFieldExpr($3->relation_name,$3->attribute_name));
+      delete $3;
+      std::unique_ptr<Expression> left(new NullExpr());
+      $$ = new ComparisonExpr($2, std::move(left), std::move(right));
+      // $$.reset(expr);
+    }
+
+    // attr & attr
+    | rel_attr comp_op rel_attr {
+      std::unique_ptr<UnboundFieldExpr> left(new UnboundFieldExpr($1->relation_name,$1->attribute_name));
+      std::unique_ptr<UnboundFieldExpr> right(new UnboundFieldExpr($3->relation_name,$3->attribute_name));
+      delete $1;
+      delete $3;
+      $$ = new ComparisonExpr($2, std::move(left), std::move(right));
+      
+    }
+
+    // attr & value
+    | rel_attr comp_op value {
+      std::unique_ptr<UnboundFieldExpr> left(new UnboundFieldExpr($1->relation_name,$1->attribute_name));
+      std::unique_ptr<ValueExpr> right(new ValueExpr(*$3));
+      delete $3;
+      delete $1;
+      $$ = new ComparisonExpr($2, std::move(left), std::move(right));
+      // $$.reset(expr);
+    }
+    | value comp_op rel_attr {
+      std::unique_ptr<UnboundFieldExpr> right(new UnboundFieldExpr($3->relation_name,$3->attribute_name));
+      std::unique_ptr<ValueExpr> left(new ValueExpr(*$1));
+      delete $3;
+      delete $1;
+      $$ = new ComparisonExpr($2, std::move(left), std::move(right));
+      // $$.reset(expr);
+    }
+
+    // attr & expression
+    | rel_attr comp_op expression {
+      std::unique_ptr<UnboundFieldExpr> left(new UnboundFieldExpr($1->relation_name,$1->attribute_name));
+      std::unique_ptr<Expression> right ($3);
+      cout << "rel_attr&expression:"  << '\n';
+      $$ = new ComparisonExpr($2, std::move(left), std::move(right));
+      // $$.reset(expr);
+      delete $1;
+    }
+    | expression comp_op rel_attr {
+      std::unique_ptr<UnboundFieldExpr> right(new UnboundFieldExpr($3->relation_name,$3->attribute_name));
+      std::unique_ptr<Expression> left ($1);
+      $$ = new ComparisonExpr($2, std::move(left), std::move(right));
+      // $$.reset(expr);
+      delete $3;
+    }
+
+//-------------------------- value --------------------------
+
+    // value & sub_query
+    | value comp_op LBRACE select_stmt RBRACE {
+      std::unique_ptr<ValueExpr> left(new ValueExpr(*$1));
+      delete $1;
+      std::unique_ptr<ParsedSqlNode> query($4);
+      std::unique_ptr<SubQueryExpr> right(new SubQueryExpr(std::move(query)));
+      $$ = new ComparisonExpr($2, std::move(left), std::move(right));
+      // $$.reset(expr);
+    }
+    | LBRACE select_stmt RBRACE comp_op value {
+      std::unique_ptr<ValueExpr> right(new ValueExpr(*$5));
+      delete $5;
+      std::unique_ptr<ParsedSqlNode> query;
+      query.reset($2);
+      std::unique_ptr<SubQueryExpr> left(new SubQueryExpr(std::move(query)));
+      $$ = new ComparisonExpr($4, std::move(left), std::move(right));
+      // $$.reset(expr);
+    }
+
+    // value & value_list
+    | value comp_op LBRACE value value_list RBRACE {
+      std::unique_ptr<ValueExpr> left(new ValueExpr(*$1));
+      delete $1;
+      std::vector<Value> *val_list;
+      if ($5 != nullptr) {
+        val_list = $5;
+      } else {
+        val_list = new std::vector<Value>();
+      }
+      val_list->emplace(val_list->begin(), *$4);
+      delete $4;
+      std::unique_ptr<ValueListExpr> right(new ValueListExpr(val_list));
+      $$ = new ComparisonExpr($2, std::move(left), std::move(right));
+      // $$.reset(expr);
+    }
+    | LBRACE value value_list RBRACE comp_op value  {
+      std::unique_ptr<ValueExpr> right(new ValueExpr(*$6));
+      delete $6;
+      std::vector<Value> *val_list;
+      if ($3 != nullptr) {
+        val_list = $3;
+      } else {
+        val_list = new std::vector<Value>();
+      }
+      val_list->emplace(val_list->begin(), *$2);
+      delete $2;
+      std::unique_ptr<ValueListExpr> left(new ValueListExpr(val_list));
+      $$ = new ComparisonExpr($5, std::move(left), std::move(right));
+      // $$.reset(expr);
+    }
+
+    // value & null
+    | value null_comparator null {
+      std::unique_ptr<ValueExpr> left(new ValueExpr(*$1));
+      delete $1;
+      std::unique_ptr<NullExpr> right(new NullExpr);
+      $$ = new ComparisonExpr($2, std::move(left), std::move(right));
+      // $$.reset(expr);
+    }
+    | null null_comparator value {
+      std::unique_ptr<ValueExpr> right(new ValueExpr(*$3));
+      delete $3;
+      std::unique_ptr<NullExpr> left(new NullExpr);
+      $$ = new ComparisonExpr($2, std::move(left), std::move(right));
+      // $$.reset(expr);
+    }
+
+    // value & value
+    | value comp_op value {
+      std::unique_ptr<ValueExpr> left(new ValueExpr(*$1));
+      std::unique_ptr<ValueExpr> right(new ValueExpr(*$3));
+      delete $1;
+      delete $3;
+      $$ = new ComparisonExpr($2, std::move(left), std::move(right));
+      // $$.reset(expr);
+    }
+    
+    // value & expression
+    | value comp_op expression {
+      std::unique_ptr<ValueExpr> left(new ValueExpr(*$1));
+      std::unique_ptr<Expression> right ($3);
+      $$ = new ComparisonExpr($2, std::move(left), std::move(right));
+      // $$.reset(expr);
+      delete $1;
+    }
+    | expression comp_op value {
+      std::unique_ptr<ValueExpr> right(new ValueExpr(*$3));
+      std::unique_ptr<Expression> left ($1);
+      $$ = new ComparisonExpr($2, std::move(left), std::move(right));
+      // $$.reset(expr);
+      delete $3;
+    }
+
+//-------------------------- null --------------------------
+    // null & null
+    | null null_comparator null {
+      std::unique_ptr<NullExpr> left(new NullExpr);
+      std::unique_ptr<NullExpr> right(new NullExpr);
+      $$ = new ComparisonExpr($2, std::move(left), std::move(right));
+      // $$.reset(expr);
+    }
+
+    // null & sub_query
+    | null null_comparator LBRACE select_stmt RBRACE {
+      std::unique_ptr<NullExpr> left(new NullExpr);
+      std::unique_ptr<ParsedSqlNode> query($4);
+      std::unique_ptr<SubQueryExpr> right(new SubQueryExpr(std::move(query)));
+      $$ = new ComparisonExpr($2, std::move(left), std::move(right));
+      // $$.reset(expr);
+    }
+    | LBRACE select_stmt RBRACE null_comparator null{
+      std::unique_ptr<NullExpr> right(new NullExpr);
+      std::unique_ptr<ParsedSqlNode> query($2);
+      std::unique_ptr<SubQueryExpr> left(new SubQueryExpr(std::move(query)));
+      $$ = new ComparisonExpr($4, std::move(left), std::move(right));
+      // $$.reset(expr);
+    }
+
+    // null & value_list
+    | null null_comparator LBRACE value value_list RBRACE {
+      std::unique_ptr<NullExpr> left(new NullExpr);
+      std::vector<Value> *val_list;
+      if ($5 != nullptr) {
+        val_list = $5;
+      } else {
+        val_list = new std::vector<Value>();
+      }
+      val_list->emplace(val_list->begin(), *$4);
+      delete $4;
+      std::unique_ptr<ValueListExpr> right(new ValueListExpr(val_list));
+      $$ = new ComparisonExpr($2, std::move(left), std::move(right));
+      // $$.reset(expr);
+    }
+    | LBRACE value value_list RBRACE null_comparator null  {
+      std::unique_ptr<NullExpr> right(new NullExpr);
+      std::vector<Value> *val_list;
+      if ($3 != nullptr) {
+        val_list = $3;
+      } else {
+        val_list = new std::vector<Value>();
+      }
+      val_list->emplace(val_list->begin(), *$2);
+      delete $2;
+      std::unique_ptr<ValueListExpr> left(new ValueListExpr(val_list));
+      $$ = new ComparisonExpr($5, std::move(left), std::move(right));
+      // $$.reset(expr);
+    }
+
+    // null & expression
+    | null null_comparator expression {
+      std::unique_ptr<NullExpr> left(new NullExpr);
+      std::unique_ptr<Expression> right ($3);
+      $$ = new ComparisonExpr($2, std::move(left), std::move(right));
+      // $$.reset(expr);
+    }
+    | expression null_comparator null {
+      std::unique_ptr<NullExpr> right(new NullExpr);
+      std::unique_ptr<Expression> left ($1);
+      $$ = new ComparisonExpr($2, std::move(left), std::move(right));
+      // $$.reset(expr);
+    }
+
+//-------------------------- sub_query --------------------------
+
+    // sub_query & sub_query
+    | LBRACE select_stmt RBRACE null_comparator LBRACE select_stmt RBRACE {
+      std::unique_ptr<ParsedSqlNode> left_query($2);
+      std::unique_ptr<SubQueryExpr> left(new SubQueryExpr(std::move(left_query)));
+      std::unique_ptr<ParsedSqlNode> right_query($6);
+      std::unique_ptr<SubQueryExpr> right(new SubQueryExpr(std::move(right_query)));
+      $$ = new ComparisonExpr($4, std::move(left), std::move(right));
+    }
+
+    // sub_query & value_list
+    | LBRACE select_stmt RBRACE null_comparator LBRACE value value_list RBRACE {
+      std::unique_ptr<ParsedSqlNode> left_query($2);
+      std::unique_ptr<SubQueryExpr> left(new SubQueryExpr(std::move(left_query)));
+      std::vector<Value> *val_list;
+      if ($7 != nullptr) {
+        val_list = $7;
+      } else {
+        val_list = new std::vector<Value>();
+      }
+      val_list->emplace(val_list->begin(), *$6);
+      delete $6;
+      std::unique_ptr<ValueListExpr> right(new ValueListExpr(val_list));
+      $$ = new ComparisonExpr($4, std::move(left), std::move(right));
+      // $$.reset(expr);
+    }
+    | LBRACE value value_list RBRACE null_comparator LBRACE select_stmt RBRACE {
+      std::unique_ptr<ParsedSqlNode> right_query($7);
+      std::unique_ptr<SubQueryExpr> right(new SubQueryExpr(std::move(right_query)));
+      std::vector<Value> *val_list;
+      if ($3 != nullptr) {
+        val_list = $3;
+      } else {
+        val_list = new std::vector<Value>();
+      }
+      val_list->emplace(val_list->begin(), *$2);
+      delete $2;
+      std::unique_ptr<ValueListExpr> left(new ValueListExpr(val_list));
+      $$ = new ComparisonExpr($5, std::move(left), std::move(right));
+      // $$.reset(expr);
+    }
+
+    // sub_query & expression
+    | LBRACE select_stmt RBRACE null_comparator expression {
+      std::unique_ptr<ParsedSqlNode> left_query($2);
+      std::unique_ptr<SubQueryExpr> left(new SubQueryExpr(std::move(left_query)));
+      std::unique_ptr<Expression> right ($5);
+      $$ = new ComparisonExpr($4, std::move(left), std::move(right));
+      // $$.reset(expr);
+    }
+    | expression null_comparator LBRACE select_stmt RBRACE {
+      std::unique_ptr<ParsedSqlNode> right_query($4);
+      std::unique_ptr<SubQueryExpr> right(new SubQueryExpr(std::move(right_query)));
+      std::unique_ptr<Expression> left ($1);
+      $$ = new ComparisonExpr($2, std::move(left), std::move(right));
+      // $$.reset(expr);
+    }
+
+//-------------------------- expression --------------------------
+    // expression & expression
+    | expression null_comparator expression {
+      std::unique_ptr<Expression> left ($1);
+      std::unique_ptr<Expression> right ($3);
+      $$ = new ComparisonExpr($2, std::move(left), std::move(right));
+      // $$.reset(expr);
+    }
+    // expression & value_list 
+    | expression null_comparator LBRACE value value_list RBRACE {
+      std::unique_ptr<Expression> left ($1);
+      std::vector<Value> *val_list;
+      if ($5 != nullptr) {
+        val_list = $5;
+      } else {
+        val_list = new std::vector<Value>();
+      }
+      val_list->emplace(val_list->begin(), *$4);
+      delete $4;
+      std::unique_ptr<ValueListExpr> right(new ValueListExpr(val_list));
+      $$ = new ComparisonExpr($2, std::move(left), std::move(right));
+      // $$.reset(expr);
+    }
+    | LBRACE value value_list RBRACE null_comparator expression {
+      std::unique_ptr<Expression> right ($6);
+      std::vector<Value> *val_list;
+      if ($3 != nullptr) {
+        val_list = $3;
+      } else {
+        val_list = new std::vector<Value>();
+      }
+      val_list->emplace(val_list->begin(), *$2);
+      delete $2;
+      std::unique_ptr<ValueListExpr> left(new ValueListExpr(val_list));
+      $$ = new ComparisonExpr($5, std::move(left), std::move(right));
+      // $$.reset(expr);
+    }
+    ;
 
 where:
     /* empty */
@@ -910,11 +1335,10 @@ subquery:
       $$->left_attr = *$1;
       $$->comp = $2;
       $$->right_value_type = ValueType::SUB_QUERY;
-      /*std::cout << "709 address:" << $5 << '\n';
-      cout << $5->selection.relations[0] << '\n'; */
+      
       $$->right_sub_queries = $4;
       delete $1;
-      // cout << (*$$)[0].right_sub_queries << '\n';
+      
     } 
     | LBRACE select_stmt RBRACE comp_op rel_attr {
       $$ = new ConditionSqlNode;
@@ -975,6 +1399,7 @@ subquery:
       delete $6;
     }
     ;
+
 
 condition_list:
     /* empty */
@@ -1151,6 +1576,17 @@ comp_op:
     | NOT EXISTS { $$ = NOT_EXISTS_; }
     ;
 
+null_comparator:
+  comp_op {
+    $$ = $1;
+  }
+  | IS {
+    $$ = IS_NULL_;
+  }
+  | IS NOT {
+    $$ = IS_NOT_NULL_;
+  }
+;
 // your code here
 group_by:
     /* empty */

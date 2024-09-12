@@ -144,7 +144,8 @@ RC SelectStmt::create(Db *db, SelectSqlNode &select_sql, Stmt *&stmt) {
         name_to_table.insert({cond.right_attr.relation_name, db->find_table(cond.right_attr.relation_name.c_str())});
         useful_conditions.push_back(cond);
       } else if ((cond.left_value_type == ValueType::ATTRIBUTE && cond.right_value_type  == ValueType::CONSTANT) || (cond.right_value_type  == ValueType::ATTRIBUTE && cond.left_value_type  == ValueType::CONSTANT)) {
-        select_sql.conditions.push_back(cond);
+        // TODO 
+        //select_sql.conditions.push_back(cond);
       } else if ((cond.left_value_type == ValueType::CONSTANT && cond.right_value_type  == ValueType::CONSTANT) || (cond.right_value_type  == ValueType::CONSTANT && cond.left_value_type  == ValueType::CONSTANT)) {
         useful_conditions.push_back(cond);
       }
@@ -158,14 +159,29 @@ RC SelectStmt::create(Db *db, SelectSqlNode &select_sql, Stmt *&stmt) {
     filters[k] = filter_stmt;
   }
   
+  std::vector<std::unique_ptr<Expression>> conditions;
+  // std::vector<pair<size_t,bool>> sub_query_pos;
+  for (size_t k = 0; k < select_sql.conditions.size(); k++) {
+    rc = expression_binder.bind_expression(select_sql.conditions[k], conditions);
+    if (OB_FAIL(rc)) {
+      LOG_INFO("bind expression failed. rc=%s", strrc(rc));
+      return rc;
+    }
+    // auto expr = static_cast<ComparisonExpr*>(select_sql.conditions[k].get());
+    // if (expr->left_expr_type() == ExprType::SUB_QUERY_EXPR) {
+    //   sub_query_pos.emplace_back(std::make_pair(k, true));
+    // }
+    // if (expr->rightt_expr_type() == ExprType::SUB_QUERY_EXPR) {
+    //   sub_query_pos.emplace_back(std::make_pair(k, true));
+    // }
+  }
   
   // create filter statement in `where` statement
   FilterStmt *filter_stmt = nullptr;
   rc          = FilterStmt::create(db,
       default_table,
       &table_map,
-      select_sql.conditions.data(),
-      static_cast<int>(select_sql.conditions.size()),
+      conditions,
       filter_stmt);
   if (rc != RC::SUCCESS) {
     LOG_WARN("cannot construct filter stmt");

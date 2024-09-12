@@ -24,13 +24,14 @@ class Db;
 class Table;
 class FieldMeta;
 
-struct FilterObj
-{
+struct FilterObj {
   ValueType  value_type;
-  Field field;
-  Value value;
-  Stmt * sub_query;
-  std::vector<Value> *values;
+  Field field;                  // attr
+  Value value;                  // value & null
+  Stmt * sub_query;             // sub_query
+  std::vector<Value> *values;   // value_list
+  std::unique_ptr<Expression>   expression;
+
   void init_attr(const Field &field) {
     value_type     = ValueType::ATTRIBUTE;
     this->field = field;
@@ -46,18 +47,53 @@ struct FilterObj
     value_type = ValueType::SUB_QUERY;
   }
   
-  void init_value_list(std::vector<Value>* ptr) {
-    this->values = ptr;
+  void init_value_list(std::unique_ptr<Expression>& other) {
+    expression.reset(other.release());
+    values = static_cast<ValueListExpr*>(expression.get())->values_list();
     value_type = ValueType::VALUE_LIST;
   }
   void init_null(const Value v) {
     this->value = v;
     value_type = ValueType::NULL_TYPE;
   }
+  void init_null() {
+    value_type = ValueType::NULL_TYPE;
+    value_type = ValueType::NULL_TYPE;
+  }
+
+  void init_expression(std::unique_ptr<Expression>& other) {
+    value_type = ValueType::EXPRESSION_TYPE;
+    expression.reset(other.release());
+  }
+
+  RC convert_to_expression(std::unique_ptr<Expression>& expr) {
+    switch (value_type) {
+    case ValueType::ATTRIBUTE:{
+      expr.reset(new FieldExpr(field));
+    } break;
+    case ValueType::CONSTANT: {
+      expr.reset(new ValueExpr(value));
+    }break;
+    case ValueType::NULL_TYPE : {
+      expr.reset(new NullExpr);
+    }break;
+    case ValueType::SUB_QUERY : {
+
+    }break;
+    case ValueType::VALUE_LIST: {
+      expr.reset(expression.release());
+    }break;
+    case ValueType::EXPRESSION_TYPE: {
+      expr.reset(expression.release());
+    }break;
+    default:
+      break;
+    }
+    return RC::SUCCESS;
+  }
 };
 
-class FilterUnit
-{
+class FilterUnit {
 public:
   FilterUnit() = default;
   ~FilterUnit() {}
@@ -66,8 +102,8 @@ public:
 
   CompOp comp() const { return comp_; }
 
-  void set_left(const FilterObj &obj) { left_ = obj; }
-  void set_right(const FilterObj &obj) { right_ = obj; }
+  FilterObj &left() { return left_; }
+  FilterObj &right() { return right_; }
 
   const FilterObj &left() const { return left_; }
   const FilterObj &right() const { return right_; }
@@ -93,17 +129,24 @@ public:
 public:
   static RC create(Db *db, Table *default_table, const std::unordered_map<std::string, Table *> *tables,
        ConditionSqlNode *conditions, int condition_num, FilterStmt *&stmt);
-
+  static RC create(Db *db, Table *default_table, const std::unordered_map<std::string, Table *> *tables,
+    std::vector<std::unique_ptr<Expression>>& conditions, FilterStmt *&stmt);
   static RC create_filter_unit(Db *db, Table *default_table, const std::unordered_map<std::string, Table *> *tables,
        ConditionSqlNode &condition, FilterUnit *&filter_unit);
+  static RC create_filter_unit(Db *db, Table *default_table, const std::unordered_map<std::string, Table *> *tables,
+       std::unique_ptr<Expression>& expr, FilterUnit *&filter_unit);
+
   void set_flag(int index, bool flag) {
     if (index < 0 || index >= static_cast<int>(filter_flags_.size())) 
       return;
     filter_flags_[index] = flag;
   }
+  bool flag(size_t k) const { return filter_flags_[k];}
   RC filter_expression(std::vector<std::unique_ptr<Expression>>& cmp_exprs);
   RC filter_sub_queries(std::vector<FilterUnit*>& vec_querys);
   RC filter_value_list(std::vector<FilterUnit*>& value_list);
+private:
+  static RC create_filter_obj(Db* db, FilterUnit* unit, std::unique_ptr<Expression>& expr, bool left);
 private:
   std::vector<FilterUnit *> filter_units_;  // 默认当前都是AND关系
   // used to mark whether a filter has been pushed down.

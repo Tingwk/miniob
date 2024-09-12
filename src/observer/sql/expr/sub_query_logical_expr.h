@@ -11,7 +11,7 @@ class SubQueryLogicalExpr : public Expression {
   virtual ~SubQueryLogicalExpr() = default;
   RC get_value(const Tuple &tuple, Value &value) const override { return RC::INVALID_ARGUMENT;}
   AttrType value_type() const override { return AttrType::UNDEFINED; }
-  ExprType type() const override { return ExprType::SUB_QUERY_EXPR; }
+  ExprType type() const override { return ExprType::SUB_QUERY_LOGICAL_EXPR; }
   bool with_table_name() const {return with_table_name_;}
   void set_with_table_name(bool f) {with_table_name_ = f;}
   std::unique_ptr<LogicalOperator>& sub_query()  { return sub_query_;}

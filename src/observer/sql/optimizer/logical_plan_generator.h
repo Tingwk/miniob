@@ -30,7 +30,8 @@ class UpdateStmt;
 class OrderByStmt;
 class CreateSelectStmt;
 class UpdateLogicalOperator;
-
+class Table;
+class Expression;
 class LogicalPlanGenerator
 {
 public:
@@ -51,4 +52,5 @@ private:
   RC create_plan(OrderByStmt *order_stmt, std::unique_ptr<LogicalOperator> &logical_operator);
 
   RC create_group_by_plan(SelectStmt *select_stmt, std::unique_ptr<LogicalOperator> &logical_operator);
+  bool try_push_down(FilterStmt* stmt, size_t k, Table * table, std::unique_ptr<Expression>& expr);
 };

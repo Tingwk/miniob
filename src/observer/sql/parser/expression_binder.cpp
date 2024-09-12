@@ -91,6 +91,22 @@ RC ExpressionBinder::bind_expression(unique_ptr<Expression> &expr, vector<unique
       ASSERT(false, "shouldn't be here");
     } break;
 
+    case ExprType::NULL_EXPR: {
+      cout << "yes null expr\n";
+      bound_expressions.emplace_back(std::move(expr));
+      return RC::SUCCESS;
+    }break;
+
+    case ExprType::VALUE_LIST_EXPR: {
+      bound_expressions.emplace_back(std::move(expr));
+      return RC::SUCCESS;
+    } break;
+     
+    case ExprType::SUB_QUERY_EXPR: {
+      bound_expressions.emplace_back(std::move(expr));
+      return RC::SUCCESS;
+    } break;
+
     default: {
       LOG_WARN("unknown expression type: %d", static_cast<int>(expr->type()));
       return RC::INTERNAL;
