@@ -135,7 +135,12 @@ public:
    */
   virtual int  pos() const { return pos_; }
   virtual void set_pos(int pos) { pos_ = pos; }
-
+  virtual void set_alias(const char* str) {
+    alias_ = str;
+    has_alias_ = true;
+  }
+  bool has_alias() const { return has_alias_; }
+  std::string alias() { return alias_; }
   /**
    * @brief 用于 ComparisonExpr 获得比较结果 `select`。
    */
@@ -152,6 +157,8 @@ protected:
 
 private:
   std::string name_;
+  std::string alias_;
+  bool has_alias_{false};
 };
 
 class StarExpr : public Expression {

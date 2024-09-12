@@ -128,6 +128,7 @@ UnboundAggregateExpr *create_aggregate_expression(const char *aggregate_name,
         null
         IS
         HAVING
+        VIEW
 
 /** union 中定义各种数据类型，真实生成的代码也是union类型，所以不能有非POD类型的数据 **/
 %union {
@@ -172,7 +173,7 @@ UnboundAggregateExpr *create_aggregate_expression(const char *aggregate_name,
 %type <value>               value_with_null
 %type <id_list_type>        id_list
 %type <number>              number
-// %type <string>           relation
+%type <string>              alias_stmt;
 %type <comp>                comp_op
 %type <rel_attr>            rel_attr
 %type <attr_infos>          attr_def_list
@@ -201,6 +202,7 @@ UnboundAggregateExpr *create_aggregate_expression(const char *aggregate_name,
 %type <sql_node>            insert_stmt
 %type <sql_node>            update_stmt
 %type <sql_node>            delete_stmt
+%type <sql_node>            create_view_stmt
 %type <sql_node>            create_table_stmt
 %type <sql_node>            drop_table_stmt
 %type <sql_node>            show_tables_stmt
@@ -236,6 +238,7 @@ commands: command_wrapper opt_semicolon  //commands or sqls. parser starts here.
 command_wrapper:
     calc_stmt
   | select_stmt
+  | create_view_stmt
   | insert_stmt
   | update_stmt
   | delete_stmt
@@ -372,6 +375,15 @@ drop_index_stmt:      /*drop index 语句的语法解析树*/
       $$->drop_index.relation_name = $5;
       free($3);
       free($5);
+    }
+    ;
+create_view_stmt:
+    CREATE VIEW ID AS select_stmt 
+    {
+      $$ = new ParsedSqlNode(SCF_CREATE_VIEW);
+      $$->create_view.view_name = $3;
+      free($3);
+      $$->create_view.sub_query = $5;
     }
     ;
 create_table_stmt:    /*create table 语句的语法解析树*/
@@ -748,75 +760,97 @@ all_expression:
   ;
 */
 expression:
-    expression '+' expression {
+    expression '+' expression alias_stmt {
       $$ = create_arithmetic_expression(ArithmeticExpr::Type::ADD, $1, $3, sql_string, &@$);
+      if ($4) {
+        $$->set_alias($4);
+        free($4);
+      }
     }
-    | expression '-' expression {
+    | expression '-' expression alias_stmt {
       $$ = create_arithmetic_expression(ArithmeticExpr::Type::SUB, $1, $3, sql_string, &@$);
+      if ($4) {
+        $$->set_alias($4);
+        free($4);
+      }
     }
-    | expression '*' expression {
+    | expression '*' expression alias_stmt {
       $$ = create_arithmetic_expression(ArithmeticExpr::Type::MUL, $1, $3, sql_string, &@$);
+      if ($4) {
+        $$->set_alias($4);
+        free($4);
+      }
     }
-    | expression '/' expression {
+    | expression '/' expression alias_stmt {
       $$ = create_arithmetic_expression(ArithmeticExpr::Type::DIV, $1, $3, sql_string, &@$);
+      if ($4) {
+        $$->set_alias($4);
+        free($4);
+      }
     }
-    | LBRACE expression RBRACE {
+    | LBRACE expression RBRACE alias_stmt {
       $$ = $2;
       $$->set_name(token_name(sql_string, &@$));
+      if ($4) {
+        $$->set_alias($4);
+        free($4);
+      }
     }
-    | '-' expression %prec UMINUS {
+    | '-' expression %prec UMINUS alias_stmt {
       $$ = create_arithmetic_expression(ArithmeticExpr::Type::NEGATIVE, $2, nullptr, sql_string, &@$);
+      if ($5) {
+        $$->set_alias($5);
+        free($5);
+      }
     }
-    | value {
+    | value alias_stmt{
       $$ = new ValueExpr(*$1);
       $$->set_name(token_name(sql_string, &@$));
       delete $1;
+      if ($2) {
+        $$->set_alias($2);
+        free($2);
+      }
     }
-    | ID {
+    | ID alias_stmt{
       $$ = new UnboundFieldExpr("", $1);
       $$->set_name(token_name(sql_string, &@$));
       free($1);
+      if ($2) {
+        $$->set_alias($2);
+        free($2);
+      }
     }
-    | ID DOT ID {
+    | ID DOT ID alias_stmt {
       $$ = new UnboundFieldExpr($1, $3);
       $$->set_name(token_name(sql_string,&@$));
       free($1);
       free($3);
+      if ($4) {
+        $$->set_alias($4);
+        free($4);
+      }
     }
-    | '*' {
+    | '*' alias_stmt{
       $$ = new StarExpr();
+      if ($2) {
+        $$->set_alias($2);
+        free($2);
+      }
     }
     
     // your code here
     
     ;
-/*
-function_expression:
-    function LBRACE value RBRACE {
-      $$ = new FunctionExpr($1, *$3);
-      delete $3;
-    }
-    | function LBRACE rel_attr RBRACE {
-      std::string str = $3->relation_name + "." + $3->attribute_name;
-      Value input;
-      input.set_string(str.c_str(), str.size());
-      $$ = new FunctionExpr($1, input);
-      delete $3;
-    }
-    ;
+alias_stmt:
+  /* empty */
+  {
+    $$ = nullptr;
+  }
+  | AS ID {
+    $$ = $2;
+  }
 
-function:
-    DATE_FORMAT {
-      $$ = FunctionType::DATE_FORMAT;
-    }
-    | LENGTH {
-      $$ = FunctionType::LENGTH;
-    }
-    | ROUND {
-      $$ = FunctionType::ROUND;
-    }
-    ;
-*/
 rel_attr:
     ID {
       std::cout << $1<<'\n';

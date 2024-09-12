@@ -222,6 +222,11 @@ struct CreateSelectSqlNode {
   ParsedSqlNode* sub_query;
 };
 
+struct CreateViewSqlNode  {
+  std::string view_name;
+  ParsedSqlNode* sub_query;
+};
+
 /**
  * @brief 描述一个drop table语句
  * @ingroup SQLParser
@@ -327,6 +332,7 @@ enum SqlCommandFlag
   SCF_UPDATE,
   SCF_DELETE,
   SCF_CREATE_TABLE,
+  SCF_CREATE_VIEW,
   SCF_DROP_TABLE,
   SCF_CREATE_SELECT,
   SCF_CREATE_INDEX,
@@ -348,8 +354,7 @@ enum SqlCommandFlag
  * @brief 表示一个SQL语句
  * @ingroup SQLParser
  */
-class ParsedSqlNode
-{
+class ParsedSqlNode {
 public:
   enum SqlCommandFlag flag;
   ErrorSqlNode        error;
@@ -367,6 +372,7 @@ public:
   ExplainSqlNode      explain;
   SetVariableSqlNode  set_variable;
   CreateSelectSqlNode create_select;
+  CreateViewSqlNode   create_view;
 
 public:
   ParsedSqlNode();

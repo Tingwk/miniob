@@ -48,8 +48,12 @@ RC CreateSelectPhysicalOperator::open(Trx* trx) {
         // attr.type = aggre_expr->value_type();
         attr.nullable = true;
         attr.name = aggre_expr->name();
-      } else {
-        // ...
+      } else if (expre->type() == ExprType::ARITHMETIC) {
+        auto arithmetic_expr = static_cast<ArithmeticExpr*>(expre);
+        attr.length = arithmetic_expr->value_length();
+        attr.type = arithmetic_expr->value_type();
+        attr.nullable = true;
+        attr.name = arithmetic_expr->has_alias() ? arithmetic_expr->alias():arithmetic_expr->name();
       }
       infos_.emplace_back(attr);
     }

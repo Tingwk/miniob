@@ -480,8 +480,7 @@ bool ArithmeticExpr::equal(const Expression &other) const
   return arithmetic_type_ == other_arith_expr.arithmetic_type() && left_->equal(*other_arith_expr.left_) &&
          right_->equal(*other_arith_expr.right_);
 }
-AttrType ArithmeticExpr::value_type() const
-{
+AttrType ArithmeticExpr::value_type() const {
   if (!right_) {
     return left_->value_type();
   }
