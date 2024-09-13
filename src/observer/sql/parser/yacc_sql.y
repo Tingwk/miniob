@@ -195,6 +195,7 @@ UnboundAggregateExpr *create_aggregate_expression(const char *aggregate_name,
 %type <string>              storage_format
 %type <relation_list>       rel_list
 %type <expression>          expression
+%type <expression>          aggr_func_expr
 %type <expression_list>     expression_list
 %type <expression_list>     group_by
 %type <sql_node>            calc_stmt
@@ -689,151 +690,99 @@ calc_stmt:
     ;
 
 expression_list:
-    expression
+    expression alias_stmt
     {
       $$ = new std::vector<std::unique_ptr<Expression>>;
+      if ($2) {
+        $1->set_alias($2);
+        free($2);
+      }
       $$->emplace_back($1);
     }
-    | expression COMMA expression_list
+    | expression alias_stmt COMMA expression_list
     {
-      if ($3 != nullptr) {
-        $$ = $3;
+      if ($4 != nullptr) {
+        $$ = $4;
       } else {
         $$ = new std::vector<std::unique_ptr<Expression>>;
       }
-      $$->emplace($$->begin(), $1);
-    }
-    | ID LBRACE RBRACE {
-      $$ = new std::vector<std::unique_ptr<Expression>>;
-      Expression *expr = new ErrorExpr();
-      $$->emplace_back(expr);
-      free($1);
-    }
-    | ID LBRACE RBRACE COMMA expression_list {
-      if ($5) {
-        delete $5;
+      if ($2) {
+        $1->set_alias($2);
+        free($2);
       }
-      $$ = new std::vector<std::unique_ptr<Expression>>;
-      Expression *expr = new ErrorExpr();
-      $$->emplace_back(expr);
-      free($1);
-    }
-
-    | ID LBRACE expression RBRACE {
-      $$ = new std::vector<std::unique_ptr<Expression>>;
-      auto expr = create_aggregate_expression($1, $3, sql_string, &@$);
-      $$->emplace_back(expr);
-      free($1);
-    }
-    | ID LBRACE expression RBRACE COMMA expression_list  {
-      $$ = $6;
-      int start = @1.first_column;
-      int end = @4.last_column;
-      auto expr = create_aggregate_expression($1, $3, sql_string, &@$);
-      expr->set_name(std::string(sql_string+ start, end- start + 1));
-      free($1);
-      $$->emplace($$->begin(), expr);
-    }
-    | ID LBRACE expression_list RBRACE {
-      delete $3;
-      $$ = new std::vector<std::unique_ptr<Expression>>;
-      Expression* expr = new ErrorExpr;
-      $$->emplace_back(expr);
-    }
-    | ID LBRACE expression_list RBRACE COMMA expression_list {
-      delete $3;
-      delete $6;
-      $$ = new std::vector<std::unique_ptr<Expression>>;
-      Expression* expr = new ErrorExpr;
-      $$->emplace_back(expr);
+      $$->emplace($$->begin(), $1);
     }
     
     ;
 
 expression:
-    expression '+' expression alias_stmt {
+    expression '+' expression {
       $$ = create_arithmetic_expression(ArithmeticExpr::Type::ADD, $1, $3, sql_string, &@$);
-      if ($4) {
-        $$->set_alias($4);
-        free($4);
-      }
     }
-    | expression '-' expression alias_stmt {
+    | expression '-' expression {
       $$ = create_arithmetic_expression(ArithmeticExpr::Type::SUB, $1, $3, sql_string, &@$);
-      if ($4) {
-        $$->set_alias($4);
-        free($4);
-      }
     }
-    | expression '*' expression alias_stmt {
+    | expression '*' expression {
       $$ = create_arithmetic_expression(ArithmeticExpr::Type::MUL, $1, $3, sql_string, &@$);
-      if ($4) {
-        $$->set_alias($4);
-        free($4);
-      }
     }
-    | expression '/' expression alias_stmt {
+    | expression '/' expression {
       $$ = create_arithmetic_expression(ArithmeticExpr::Type::DIV, $1, $3, sql_string, &@$);
-      if ($4) {
-        $$->set_alias($4);
-        free($4);
-      }
     }
-    | LBRACE expression RBRACE alias_stmt {
+    | LBRACE expression RBRACE {
       $$ = $2;
       $$->set_name(token_name(sql_string, &@$));
-      if ($4) {
-        $$->set_alias($4);
-        free($4);
-      }
     }
-    | '-' expression %prec UMINUS alias_stmt {
-      $$ = create_arithmetic_expression(ArithmeticExpr::Type::NEGATIVE, $2, nullptr, sql_string, &@$);
-      
+    | '-' expression %prec UMINUS {
+      $$ = create_arithmetic_expression(ArithmeticExpr::Type::NEGATIVE, $2, nullptr, sql_string, &@$);      
     }
-    | value alias_stmt{
+    | value{
       $$ = new ValueExpr(*$1);
       $$->set_name(token_name(sql_string, &@$));
       delete $1;
-      if ($2) {
-        $$->set_alias($2);
-        free($2);
-      }
     }
-    | ID alias_stmt{
+    | ID {
       $$ = new UnboundFieldExpr("", $1);
       $$->set_name(token_name(sql_string, &@$));
       free($1);
-      if ($2) {
-        $$->set_alias($2);
-        free($2);
-      }
     }
-    | ID DOT ID alias_stmt {
+    | ID DOT ID {
       $$ = new UnboundFieldExpr($1, $3);
       $$->set_name(token_name(sql_string,&@$));
       free($1);
       free($3);
-      if ($4) {
-        $$->set_alias($4);
-        free($4);
-      }
     }
-    | '*' alias_stmt{
+    | '*'{
       $$ = new StarExpr();
-      if ($2) {
-        $$->set_alias($2);
-        free($2);
-      }
+    }
+    | aggr_func_expr {
+      $$ = $1;
     }
     
     // your code here
     
     ;
+aggr_func_expr:
+    ID LBRACE expression RBRACE {
+      $$ = create_aggregate_expression($1, $3, sql_string, &@$);
+      free($1);
+    }
+    | ID LBRACE RBRACE {
+      free($1);
+      YYERROR;
+    }
+    | ID LBRACE expression_list RBRACE {
+      delete $3;
+      free($1);
+      YYERROR;
+    }
+    ;
 alias_stmt:
   /* empty */
   {
     $$ = nullptr;
+  }
+  | ID {
+    $$ = $1;
   }
   | AS ID {
     $$ = $2;
