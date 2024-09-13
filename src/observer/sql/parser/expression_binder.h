@@ -28,8 +28,12 @@ public:
   Table *find_table(const char *table_name) const;
 
   const std::vector<Table *> &query_tables() const { return query_tables_; }
-
+  void set_mapping(std::unordered_map<const char*,const char*> &other) {
+    alias_to_tb_name_ = other;
+  }
+  std::unordered_map<const char*,const char*>& mapping() { return alias_to_tb_name_; }
 private:
+  std::unordered_map<const char*,const char*> alias_to_tb_name_;
   std::vector<Table *> query_tables_;
 };
 

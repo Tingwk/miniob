@@ -645,7 +645,7 @@ assignment_stmt:
   ;
 
 select_stmt:        /*  select 语句的语法解析树*/
-    SELECT expression_list FROM ID rel_list where group_by order_by
+    SELECT expression_list FROM ID alias_stmt rel_list where group_by order_by
     {
       std::cout << "select_stmt\n";
       $$ = new ParsedSqlNode(SCF_SELECT);
@@ -654,28 +654,28 @@ select_stmt:        /*  select 语句的语法解析树*/
         delete $2;
       }
 
-      if ($5 != nullptr) {
-        $$->selection.relations.swap((*$5).relations);
-        $$->selection.joins.swap((*$5).joins);
-        delete $5;
+      if ($6 != nullptr) {
+        $$->selection.relations.swap((*$6).relations);
+        $$->selection.joins.swap((*$6).joins);
+        delete $6;
       }
       $$->selection.relations.emplace($$->selection.relations.begin(), $4);
       free($4);
       
-      if ($6 != nullptr) {
+      if ($7 != nullptr) {
         //cout << (*$6)[0].right_sub_queries << '\n';
-        $$->selection.conditions.swap(*$6);
-        delete $6;
+        $$->selection.conditions.swap(*$7);
+        delete $7;
         //cout << ($$->selection.conditions)[0].right_sub_queries << '\n';
       }
 
-      if ($7 != nullptr) {
-        $$->selection.group_by.swap(*$7);
-        delete $7;
-      }
       if ($8 != nullptr) {
-        $$->selection.order_by.swap(*$8);
+        $$->selection.group_by.swap(*$8);
         delete $8;
+      }
+      if ($9 != nullptr) {
+        $$->selection.order_by.swap(*$9);
+        delete $9;
       }
     }
     ;
@@ -749,16 +749,7 @@ expression_list:
     }
     
     ;
-/*
-all_expression:
-  expression {
 
-  }
-  | function_expression {
-    
-  }
-  ;
-*/
 expression:
     expression '+' expression alias_stmt {
       $$ = create_arithmetic_expression(ArithmeticExpr::Type::ADD, $1, $3, sql_string, &@$);
@@ -798,10 +789,7 @@ expression:
     }
     | '-' expression %prec UMINUS alias_stmt {
       $$ = create_arithmetic_expression(ArithmeticExpr::Type::NEGATIVE, $2, nullptr, sql_string, &@$);
-      if ($5) {
-        $$->set_alias($5);
-        free($5);
-      }
+      
     }
     | value alias_stmt{
       $$ = new ValueExpr(*$1);
@@ -877,35 +865,47 @@ rel_list:
     {
       $$ = nullptr;
     }
-    | COMMA ID rel_list {
+    | COMMA ID alias_stmt rel_list {
        // Cartesian Product
       $$ = new RelListSqlNode();
-      if ($3 != nullptr) {
-        $$->relations.swap(($3)->relations);
-        $$->joins.swap(($3)->joins);
-        delete $3;
+      if ($4 != nullptr) {
+        $$->relations.swap(($4)->relations);
+        $$->joins.swap(($4)->joins);
+        delete $4;
       }
-      $$->relations.emplace($$->relations.begin(), $2);
+      RelationInfo table_info;
+      table_info.relation_name = $2;
+      if ($3) {
+        table_info.alias = $3;
+        free($3);
+      }
+      $$->relations.emplace($$->relations.begin(), table_info);
       JoinSqlNode join;
       join.type = JoinType::INNER_JOIN;
       $$->joins.emplace($$->joins.begin(), join);
       free($2);
     }
-    | INNER JOIN ID on_conditions rel_list {
+    | INNER JOIN ID alias_stmt on_conditions rel_list {
       $$ = new RelListSqlNode();
-      if ($5 != nullptr) {
-        $$->relations.swap(($5)->relations);
-        $$->joins.swap(($5)->joins);
-        delete $5;
+      if ($6 != nullptr) {
+        $$->relations.swap(($6)->relations);
+        $$->joins.swap(($6)->joins);
+        delete $6;
       }
       JoinSqlNode join;
       join.type = JoinType::INNER_JOIN;
-      if ($4 != nullptr) {
-        join.conditions.swap(*$4);
-        delete $4;
+      if ($5 != nullptr) {
+        join.conditions.swap(*$5);
+        delete $5;
+      }
+      RelationInfo info;
+      info.relation_name = $3;
+      if ($4) {
+        info.alias = $4;
+        free($4);
       }
       $$->joins.emplace($$->joins.begin() ,join);
-      $$->relations.emplace($$->relations.begin(), $3);
+      $$->relations.emplace($$->relations.begin(), info);
       free($3);
     }
     ;
@@ -1185,7 +1185,6 @@ condition:
       $$->left_value_type = ValueType::NULL_TYPE;
       $$->comp = $2;
     }
-   
     ;
 
 comp_op:

@@ -49,7 +49,7 @@ public:
   std::vector<std::unique_ptr<Expression>> &query_expressions() { return query_expressions_; }
   std::vector<std::unique_ptr<Expression>> &group_by() { return group_by_; }
   OrderByStmt                *order_stmt() { return order_stmt_; }           
-  static RC field_validation_check(Db* db, const RelAttrSqlNode& cond);
+  static RC field_validation_check(Db* db, const RelAttrSqlNode& cond, std::unordered_map<const char*, const char*>& mapping);
 private:
   std::vector<std::unique_ptr<Expression>> query_expressions_;
   std::vector<Table *>                     tables_;

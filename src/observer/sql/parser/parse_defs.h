@@ -90,8 +90,7 @@ enum class ValueType {
  * 这个结构中记录的仅仅支持字段和值。
  */
 class ParsedSqlNode;
-struct ConditionSqlNode
-{
+struct ConditionSqlNode {
   ValueType left_value_type;              ///< TRUE if left-hand side is an attribute
                                  ///< 1时，操作符左边是属性名，0时，是属性值
   Value          left_value;     ///< left-hand side value if left_is_attr = FALSE
@@ -110,9 +109,13 @@ struct JoinSqlNode {
   std::vector<ConditionSqlNode> conditions;
 };
 
+struct RelationInfo{
+  std::string relation_name;
+  std::string alias;
+};
 
 struct RelListSqlNode {
-  std::vector<std::string> relations;
+  std::vector<RelationInfo> relations;
   std::vector<JoinSqlNode> joins;
 };
 
@@ -133,10 +136,11 @@ struct OrderBySqlNode {
  * 甚至可以包含复杂的表达式。
  */
 // #include "sql/expr/expression.h"
-struct SelectSqlNode
-{
+
+
+struct SelectSqlNode {
   std::vector<std::unique_ptr<Expression>> expressions;  ///< 查询的表达式
-  std::vector<std::string>                 relations;    ///< 查询的表
+  std::vector<RelationInfo>                relations;    ///< 查询的表
   std::vector<ConditionSqlNode>            conditions;   ///< 查询条件，使用AND串联起来多个条件
   std::vector<std::unique_ptr<Expression>> group_by;     ///< group by clause
   std::vector<OrderBySqlNode>              order_by;

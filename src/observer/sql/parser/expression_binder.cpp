@@ -150,8 +150,14 @@ RC ExpressionBinder::bind_unbound_field_expression(unique_ptr<Expression> &expr,
   } else {
     table = context_.find_table(table_name);
     if (nullptr == table) {
-      LOG_INFO("no such table in from list: %s", table_name);
-      return RC::SCHEMA_TABLE_NOT_EXIST;
+      auto mapping = context_.mapping();
+      auto pos = mapping.find(table_name);
+      if (pos != mapping.end() && context_.find_table(pos->second) != nullptr) {
+        table = context_.find_table(pos->second);
+      } else {
+        LOG_INFO("no such table in from list: %s", table_name);
+        return RC::SCHEMA_TABLE_NOT_EXIST;
+      }
     }
   }
 
@@ -183,15 +189,13 @@ RC ExpressionBinder::bind_field_expression(unique_ptr<Expression> &field_expr, v
 }
 
 RC ExpressionBinder::bind_value_expression(
-    unique_ptr<Expression> &value_expr, vector<unique_ptr<Expression>> &bound_expressions)
-{
+    unique_ptr<Expression> &value_expr, vector<unique_ptr<Expression>> &bound_expressions) {
   bound_expressions.emplace_back(std::move(value_expr));
   return RC::SUCCESS;
 }
 
 RC ExpressionBinder::bind_cast_expression(
-    unique_ptr<Expression> &expr, vector<unique_ptr<Expression>> &bound_expressions)
-{
+    unique_ptr<Expression> &expr, vector<unique_ptr<Expression>> &bound_expressions) {
   if (nullptr == expr) {
     return RC::SUCCESS;
   }
@@ -222,8 +226,7 @@ RC ExpressionBinder::bind_cast_expression(
 }
 
 RC ExpressionBinder::bind_comparison_expression(
-    unique_ptr<Expression> &expr, vector<unique_ptr<Expression>> &bound_expressions)
-{
+    unique_ptr<Expression> &expr, vector<unique_ptr<Expression>> &bound_expressions) {
   if (nullptr == expr) {
     return RC::SUCCESS;
   }
@@ -270,8 +273,7 @@ RC ExpressionBinder::bind_comparison_expression(
 }
 
 RC ExpressionBinder::bind_conjunction_expression(
-    unique_ptr<Expression> &expr, vector<unique_ptr<Expression>> &bound_expressions)
-{
+    unique_ptr<Expression> &expr, vector<unique_ptr<Expression>> &bound_expressions) {
   if (nullptr == expr) {
     return RC::SUCCESS;
   }

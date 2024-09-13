@@ -46,8 +46,9 @@ RC SelectStmt::create(Db *db, SelectSqlNode &select_sql, Stmt *&stmt) {
   // collect tables in `from` statement
   vector<Table *>                tables;
   unordered_map<string, Table *> table_map;
+  unordered_map<const char*, const char*> alias_to_tb_name;
   for (size_t i = 0; i < select_sql.relations.size(); i++) {
-    const char *table_name = select_sql.relations[i].c_str();
+    const char *table_name = select_sql.relations[i].relation_name.c_str();
     if (nullptr == table_name) {
       LOG_WARN("invalid argument. relation name is null. index=%d", i);
       return RC::INVALID_ARGUMENT;
@@ -62,8 +63,11 @@ RC SelectStmt::create(Db *db, SelectSqlNode &select_sql, Stmt *&stmt) {
     binder_context.add_table(table);
     tables.push_back(table);
     table_map.insert({table_name, table});
+    if (!select_sql.relations[i].alias.empty()) {
+      alias_to_tb_name.insert({select_sql.relations[i].alias.c_str(), table_name});
+    }
   }
-
+  binder_context.set_mapping(alias_to_tb_name);
   // collect query fields in `select` statement
   vector<std::unique_ptr<Expression>> bound_expressions;
   ExpressionBinder expression_binder(binder_context);
@@ -133,13 +137,13 @@ RC SelectStmt::create(Db *db, SelectSqlNode &select_sql, Stmt *&stmt) {
   for (size_t k = 0; k < select_sql.joins.size(); k++) {
     std::vector<ConditionSqlNode> useful_conditions;
     for (auto &cond : select_sql.joins[k].conditions) {
+      if (cond.left_value_type == ValueType::ATTRIBUTE  && field_validation_check(db, cond.left_attr, alias_to_tb_name)!= RC::SUCCESS) {
+        return RC::INTERNAL;
+      }
+      if (cond.right_value_type == ValueType::ATTRIBUTE  && field_validation_check(db, cond.right_attr, alias_to_tb_name) != RC::SUCCESS) {
+        return RC::INTERNAL;
+      }
       if (cond.left_value_type == ValueType::ATTRIBUTE && cond.right_value_type == ValueType::ATTRIBUTE) {
-        if (rc = field_validation_check(db, cond.left_attr); rc != RC::SUCCESS) {
-          return rc;
-        }
-        if (rc = field_validation_check(db, cond.right_attr); rc != RC::SUCCESS) {
-          return rc;
-        }
         name_to_table.insert({cond.left_attr.relation_name, db->find_table(cond.left_attr.relation_name.c_str())});
         name_to_table.insert({cond.right_attr.relation_name, db->find_table(cond.right_attr.relation_name.c_str())});
         useful_conditions.push_back(cond);
@@ -192,11 +196,16 @@ RC SelectStmt::create(Db *db, SelectSqlNode &select_sql, Stmt *&stmt) {
   return RC::SUCCESS;
 }
 
-RC SelectStmt::field_validation_check(Db* db, const RelAttrSqlNode& cond) {
+RC SelectStmt::field_validation_check(Db* db, const RelAttrSqlNode& cond, std::unordered_map<const char*, const char*>& mapping) {
   auto tb = db->find_table(cond.relation_name.c_str());
   if (tb == nullptr) {
-    LOG_WARN("no such table. db=%s, table_name=%s", db->name(), cond.relation_name.c_str());
-    return RC::SCHEMA_TABLE_NOT_EXIST;
+    auto pos = mapping.find(cond.relation_name.c_str());
+    if (pos != mapping.end() && db->find_table(pos->second) != nullptr) {
+      tb = db->find_table(pos->second);
+    } else {
+      LOG_WARN("no such table. db=%s, table_name=%s", db->name(), cond.relation_name.c_str());
+      return RC::SCHEMA_TABLE_NOT_EXIST;
+    }
   }
   auto field_meta = tb->table_meta().field(cond.attribute_name.c_str());
   if (field_meta == nullptr) {
